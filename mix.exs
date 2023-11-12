@@ -8,10 +8,12 @@ defmodule HareMq.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      licenses: ["MIT"],
+      package: [
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/Dimakoua/hare_mq"}
+      ],
       description:
-        "Elixir messaging library using RabbitMQ, providing easy-to-use modules for message publishing, consuming, and retry handling",
-      links: %{"GitHub" => "https://github.com/Dimakoua/hare_mq"}
+        "Elixir messaging library using RabbitMQ, providing easy-to-use modules for message publishing, consuming, and retry handling"
     ]
   end
 
