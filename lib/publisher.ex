@@ -3,6 +3,12 @@ defmodule HareMq.Publisher do
     @callback publish_message(map() | binary()) :: :ok | {:error, reason :: :blocked | :closing}
   end
 
+  @moduledoc """
+  GenServer module implementing a RabbitMQ message publisher.
+
+  This module provides a behavior for publishing messages to RabbitMQ, including connecting to RabbitMQ, declaring exchanges, and sending messages.
+  """
+
   defmacro __using__(options) do
     quote location: :keep, generated: true do
       require Logger
@@ -105,6 +111,20 @@ defmodule HareMq.Publisher do
         end
       end
 
+      @doc """
+      Func for publishing messages.
+
+      ## Examples
+
+          defmodule MyPublisher do
+            use HareMq.Publisher, exchange: "my_exchange", routing_key: "my_routing_key"
+
+            def publish() do
+              message = %{key: "value"}
+              HareMq.Publisher.publish_message(message)
+            end
+          end
+      """
       def publish_message(message) when is_binary(message) do
         case get_channel() do
           {:error, :not_connected} ->

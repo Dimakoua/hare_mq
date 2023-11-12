@@ -1,4 +1,9 @@
 defmodule HareMq.Connection do
+  @moduledoc """
+  GenServer module for managing AMQP connection.
+
+  This module handles the lifecycle of the AMQP connection and provides functions for getting, closing, and monitoring the connection.
+  """
   use GenServer
   use AMQP
   require Logger
@@ -15,6 +20,20 @@ defmodule HareMq.Connection do
     {:ok, nil}
   end
 
+  @doc """
+  Get the current connection.
+
+  Returns:
+    - `{:ok, connection}`: If the connection is established.
+    - `{:error, :not_connected}`: If the connection is not established.
+
+  ## Examples
+
+      case HareMq.Connection.get_connection() do
+        {:ok, conn} -> IO.inspect(conn)
+        {:error, :not_connected} -> IO.puts("Not connected!")
+      end
+  """
   def get_connection do
     case GenServer.call(__MODULE__, :get_connection) do
       nil -> {:error, :not_connected}
@@ -22,6 +41,20 @@ defmodule HareMq.Connection do
     end
   end
 
+  @doc """
+  Close the current connection.
+
+  Returns:
+    - `{:ok, connection}`: If the connection is successfully closed.
+    - `{:error, :not_connected}`: If the connection is not established.
+
+  ## Examples
+
+      case HareMq.Connection.close_connection() do
+        {:ok, conn} -> IO.inspect(conn)
+        {:error, :not_connected} -> IO.puts("Not connected!")
+      end
+  """
   def close_connection do
     case GenServer.call(__MODULE__, :close_connection) do
       nil -> {:error, :not_connected}

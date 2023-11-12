@@ -1,4 +1,30 @@
 defmodule HareMq.Configuration do
+  @moduledoc """
+  Configuration module for HareMq.
+
+  This module provides functions for configuring HareMq components, such as queues and connections.
+  """
+
+  @doc """
+  Structure representing the configuration for a queue.
+
+  ## Fields
+
+  - `:channel`: The AMQP channel.
+  - `:queue_name`: The name of the queue.
+  - `:delay_queue_name`: The name of the delay queue.
+  - `:dead_queue_name`: The name of the dead letter queue.
+  - `:exchange`: The AMQP exchange.
+  - `:routing_key`: The routing key.
+  - `:delay_in_ms`: The delay in milliseconds.
+  - `:message_ttl`: The message time-to-live.
+  - `:retry_limit`: The number of retry attempts.
+  - `:durable`: Whether the queue is durable or not.
+
+  ## Examples
+
+      config = %Configuration{...}
+  """
   alias __MODULE__
 
   @delay_in_ms Application.compile_env(:hare_mq, :configuration)[:delay_in_ms] || 10_000
@@ -18,6 +44,18 @@ defmodule HareMq.Configuration do
     :durable
   ]
 
+  @doc """
+  Get the configuration for a queue.
+
+  ## Examples
+
+      config = get_queue_configuration(
+        channel: channel,
+        name: name,
+        exchange: exchange,
+        routing_key: routing_key
+      )
+  """
   def get_queue_configuration(
         channel: channel,
         name: name,

@@ -3,6 +3,12 @@ defmodule HareMq.Consumer do
     @callback consume(map() | binary()) :: :ok | {:ok, any()} | :error | {:error, any()}
   end
 
+  @moduledoc """
+  GenServer module implementing a RabbitMQ consumer.
+
+  This module provides a behavior for RabbitMQ message consumption, including connecting to RabbitMQ, declaring queues, and handling incoming messages.
+  """
+
   use GenServer
   use AMQP
 
@@ -13,6 +19,7 @@ defmodule HareMq.Consumer do
   defmacro __using__(options) do
     quote location: :keep, generated: true do
       require Logger
+
       @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
                             :reconnect_interval_in_ms
                           ] || 10_000
@@ -107,6 +114,22 @@ defmodule HareMq.Consumer do
     quote location: :keep, generated: true do
       require Logger
 
+      @doc """
+      Callback for processing incoming messages.
+
+      Implement this callback in your consumer module to define how to handle incoming messages.
+
+      ## Examples
+
+          defmodule MyConsumer do
+            use HareMq.Consumer, queue_name: "my_queue", routing_key: "my_routing_key"
+
+            def consume(message) do
+              IO.puts("Received message: \#{inspect(message)}")
+              :ok
+            end
+          end
+      """
       def consume(message) do
         raise "Implement me"
       end
