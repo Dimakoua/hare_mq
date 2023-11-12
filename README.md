@@ -36,14 +36,15 @@ The `HareMq.Consumer` module defines a behavior for consuming messages from an A
 
 To use HareMq in your Elixir project, follow these steps:
 
-1. Install the required dependencies by adding them to your `mix.exs` file:
+Install the required dependencies by adding them to your `mix.exs` file:
 
-   ```elixir
-   defp deps do
-     [
-       {:hare_mq, "~> 0.1.0"}
-     ]
-   end
+```elixir
+defp deps do
+  [
+    {:hare_mq, "~> 0.1.0"}
+  ]
+end
+```
 
 ### Publisher
 ```elixir
