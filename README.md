@@ -46,7 +46,7 @@ To use HareMq in your Elixir project, follow these steps:
    end
 
 ### Publisher
-```
+```elixir
 defmodule MyApp.MessageProducer do
   use HareMq.Publisher,
     routing_key: "routing_key",
@@ -61,7 +61,7 @@ end
 ```
 
 ### Consumer
-```
+```elixir
 defmodule MyApp.MessageConsumer do
   use HareMq.Consumer,
     queue_name: "queue_name",
@@ -77,7 +77,7 @@ end
 ```
 
 ### Usage in Application: MyApp.Application
-```
+```elixir
 defmodule MyApp.Application do
   use Application
 
