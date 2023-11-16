@@ -3,22 +3,18 @@ defmodule HareMq.Consumer do
     @callback consume(map() | binary()) :: :ok | {:ok, any()} | :error | {:error, any()}
   end
 
+  use AMQP
+
   @moduledoc """
   GenServer module implementing a RabbitMQ consumer.
 
   This module provides a behavior for RabbitMQ message consumption, including connecting to RabbitMQ, declaring queues, and handling incoming messages.
   """
 
-  use GenServer
-  use AMQP
-
-  def init(_) do
-    {:ok, %{}}
-  end
-
   defmacro __using__(options) do
     quote location: :keep, generated: true do
       require Logger
+      use GenServer
 
       @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
                             :reconnect_interval_in_ms
@@ -38,17 +34,6 @@ defmodule HareMq.Consumer do
         prefetch_count: @opts[:prefetch_count] || 1
       ]
 
-      def child_spec(opts) do
-        default = %{
-          id: __MODULE__,
-          start: {__MODULE__, :start_link, [opts]},
-          restart: :permanent,
-          type: :worker
-        }
-
-        Supervisor.child_spec(default, [])
-      end
-
       def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, opts, name: __MODULE__)
       end
@@ -66,6 +51,14 @@ defmodule HareMq.Consumer do
         {:ok, _} = HareMq.Queue.declare_delay_queue(config)
         {:ok, _} = HareMq.Queue.declare_dead_queue(config)
         :ok = HareMq.Queue.bind(config)
+      end
+
+      def handle_call(:get_channel, _, state) do
+        {:reply, state, state}
+      end
+
+      def handle_call(:get_channel, _, state) do
+        {:reply, state, state}
       end
 
       def handle_info(:connect, state) do
@@ -112,8 +105,6 @@ defmodule HareMq.Consumer do
 
   defmacro __before_compile__(_env) do
     quote location: :keep, generated: true do
-      require Logger
-
       @doc """
       Callback for processing incoming messages.
 
@@ -141,14 +132,6 @@ defmodule HareMq.Consumer do
           nil -> {:error, :not_connected}
           state -> {:ok, state}
         end
-      end
-
-      def handle_call(:get_channel, _, state) do
-        {:reply, state, state}
-      end
-
-      def handle_call(:get_channel, _, state) do
-        {:reply, state, state}
       end
 
       def handle_info({:basic_consume_ok, %{consumer_tag: _consumer_tag}}, state) do

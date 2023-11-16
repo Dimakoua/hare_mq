@@ -12,6 +12,7 @@ defmodule HareMq.Publisher do
   defmacro __using__(options) do
     quote location: :keep, generated: true do
       require Logger
+      use GenServer
       @opts unquote(options)
       @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
                             :reconnect_interval_in_ms
@@ -27,17 +28,6 @@ defmodule HareMq.Publisher do
         routing_key: @opts[:routing_key],
         exchange: @opts[:exchange]
       ]
-
-      def child_spec(opts) do
-        default = %{
-          id: __MODULE__,
-          start: {__MODULE__, :start_link, [opts]},
-          restart: :permanent,
-          type: :worker
-        }
-
-        Supervisor.child_spec(default, [])
-      end
 
       def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, opts, name: __MODULE__)
