@@ -7,7 +7,7 @@ defmodule HareMq do
   ```elixir
   defp deps do
   [
-    {:hare_mq, "~> 0.1.0"}
+    {:hare_mq, "~> 0.1.1"}
   ]
   end
   ```
