@@ -96,6 +96,14 @@ defmodule MyApp.Application do
   end
 end
 ```
+## Configuration
+```elixir
+config :hare_mq, :amqp,
+  host: "localhost",
+  url: "amqp://guest:guest@myhost:12345",
+  user: "guest",
+  password: "guest"
+```
 ## Contributing and Testing
 
 We welcome contributions to improve and expand this project. If you're interested in contributing, please follow these steps:

@@ -62,6 +62,14 @@ defmodule HareMq do
     end
   end
   ```
+  ## Configuration
+  ```elixir
+  config :hare_mq, :amqp,
+    host: "localhost",
+    url: "amqp://guest:guest@myhost:12345",
+    user: "guest",
+    password: "guest"
+  ```
   """
   use Application
   require Logger
