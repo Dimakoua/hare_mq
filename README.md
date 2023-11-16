@@ -85,10 +85,10 @@ defmodule MyApp.Application do
   def start(_type, _args) do
     children = [
       # Start the message consumer.
-      {MyApp.MessageConsumer, []},
+      MyApp.MessageConsumer,
 
       # Start the message producer.
-      {MyApp.MessageProducer, []}
+      MyApp.MessageProducer,
     ]
 
     opts = [strategy: :one_for_one, name: MyApp.Supervisor]
