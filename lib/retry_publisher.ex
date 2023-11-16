@@ -68,12 +68,6 @@ defmodule HareMq.RetryPublisher do
     end
   end
 
-  @moduledoc """
-  Module providing functions for republishing dead messages with retry handling.
-
-  This module includes functions for republishing messages from a dead letter queue to the original exchange.
-  """
-
   @doc """
   Republish a specified number of dead messages from the dead letter queue.
 
