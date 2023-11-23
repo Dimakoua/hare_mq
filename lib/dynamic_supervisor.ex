@@ -12,13 +12,17 @@ defmodule HareMq.DynamicSupervisor do
   end
 
   defp start_consumers([config: config, consume: _] = opts) do
-    IO.inspect("DLDLDLDL")
-    # Enum.each(0..config.consumer_count, fn number ->
-    #   start_child(worker: worker, name: name)
-    # end)
+    Enum.each(1..config[:consumer_count], fn number ->
+      start_child(
+        worker: config[:consumer_worker],
+        name: String.to_atom("#{config[:consumer_worker]}.#{number}"),
+        opts: opts
+      )
+    end)
   end
 
-  def start_child(worker: worker, name: name) do
-    DynamicSupervisor.start_child(__MODULE__, {worker, name})
+  def start_child(worker: worker, name: name, opts: opts) do
+    spec = %{id: name, start: {worker, :start_link, [opts]}}
+    DynamicSupervisor.start_child(__MODULE__, spec)
   end
 end
