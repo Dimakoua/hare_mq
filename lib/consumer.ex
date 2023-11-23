@@ -31,7 +31,7 @@ defmodule HareMq.Consumer do
       def child_spec(opts) do
         %{
           id: __MODULE__,
-          start: {__MODULE__, :start_link, [@config]},
+          start: {__MODULE__, :start_link, [[config: @config, consume: &consume/1]]},
           type: :worker,
           restart: :permanent,
           shutdown: 500
