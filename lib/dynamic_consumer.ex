@@ -11,8 +11,6 @@ defmodule HareMq.DynamicConsumer do
 
   defmacro __using__(options) do
     quote location: :keep, generated: true do
-      require Logger
-
       @opts unquote(options)
       @behaviour HareMq.Consumer.Behaviour
 
@@ -25,8 +23,19 @@ defmodule HareMq.DynamicConsumer do
         routing_key: @opts[:routing_key] || @opts[:queue_name],
         exchange: @opts[:exchange],
         prefetch_count: @opts[:prefetch_count] || 1,
-        consumer_count: @opts[:consumer_count] || 1
+        consumer_count: @opts[:consumer_count] || 1,
+        consumer_worker: HareMq.Worker.Consumer
       ]
+
+      def child_spec(opts) do
+        %{
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [opts]},
+          type: :worker,
+          restart: :permanent,
+          shutdown: 500
+        }
+      end
 
       def start_link(opts \\ []) do
         HareMq.DynamicSupervisor.start_link(config: @config, consume: &consume/1)
