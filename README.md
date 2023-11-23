@@ -77,6 +77,24 @@ defmodule MyApp.MessageConsumer do
 end
 ```
 
+The consumer_count: 10 option indicates that it should run 10 worker processes.
+### Dynamic Consumer
+```elixir
+defmodule MyApp.MessageConsumer do
+  use HareMq.Consumer,
+    queue_name: "queue_name",
+    routing_key: "routing_key",
+    exchange: "exchange",
+    consumer_count: 10
+
+  # Function to process a received message.
+  def consume(message) do
+    # Log the beginning of the message processing.
+    IO.puts("Processing message: #{inspect(message)}")
+  end
+end
+```
+
 ### Usage in Application: MyApp.Application
 ```elixir
 defmodule MyApp.Application do
@@ -98,11 +116,13 @@ end
 ```
 ## Configuration
 ```elixir
-config :hare_mq, :amqp,
-  host: "localhost",
-  url: "amqp://guest:guest@myhost:12345",
-  user: "guest",
-  password: "guest"
+config :hare_mq, 
+  exchange_type: :direct|:topic,
+  :amqp,
+    host: "localhost",
+    url: "amqp://guest:guest@myhost:12345",
+    user: "guest",
+    password: "guest"
 ```
 ## Contributing and Testing
 
