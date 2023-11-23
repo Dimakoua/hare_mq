@@ -8,11 +8,7 @@ defmodule HareMq.Worker.Consumer do
                       ] || 10_000
 
   def start_link([config: config, consume: _] = opts) do
-    IO.inspect("LDLDLDLLD")
-    IO.inspect(__MODULE__)
-    IO.inspect(config[:consumer_name])
     GenServer.start_link(__MODULE__, opts, name: config[:consumer_name])
-    |> IO.inspect
   end
 
   def init([config: _, consume: _] = opts) do
@@ -31,7 +27,7 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def get_channel(consumer_name) do
-    case GenServer.call(consumer_name, :get_channel) |> IO.inspect() do
+    case GenServer.call(consumer_name, :get_channel) do
       nil -> {:error, :not_connected}
       state -> {:ok, state}
     end
@@ -53,9 +49,6 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def republish_dead_messages(consumer_name, count \\ 1) when is_number(count) do
-    IO.inspect("DLDLDLDLDLDLDL")
-    IO.inspect(consumer_name)
-
     case get_channel(consumer_name) do
       {:error, :not_connected} ->
         {:error, :not_connected}
