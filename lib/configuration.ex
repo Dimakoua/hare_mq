@@ -33,6 +33,7 @@ defmodule HareMq.Configuration do
 
   defstruct [
     :channel,
+    :consume_fn,
     :queue_name,
     :delay_queue_name,
     :dead_queue_name,
@@ -58,12 +59,14 @@ defmodule HareMq.Configuration do
   """
   def get_queue_configuration(
         channel: channel,
+        consume_fn: consume_fn,
         name: name,
         exchange: exchange,
         routing_key: routing_key
       ) do
     %Configuration{
       channel: channel,
+      consume_fn: consume_fn,
       queue_name: name,
       delay_queue_name: "#{name}.delay",
       dead_queue_name: "#{name}.dead",

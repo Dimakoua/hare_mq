@@ -1,4 +1,4 @@
-defmodule HareMq.Consumer do
+defmodule HareMq.DynamicConsumer do
   defmodule Behaviour do
     @callback consume(map() | binary()) :: :ok | {:ok, any()} | :error | {:error, any()}
   end
@@ -25,25 +25,11 @@ defmodule HareMq.Consumer do
         routing_key: @opts[:routing_key] || @opts[:queue_name],
         exchange: @opts[:exchange],
         prefetch_count: @opts[:prefetch_count] || 1,
-        consumer_name: __MODULE__
+        consumer_count: @opts[:consumer_count] || 1
       ]
 
-      def child_spec(opts) do
-        %{
-          id: __MODULE__,
-          start: {__MODULE__, :start_link, [@config]},
-          type: :worker,
-          restart: :permanent,
-          shutdown: 500
-        }
-      end
-
       def start_link(opts \\ []) do
-        HareMq.Worker.Consumer.start_link(config: @config, consume: &consume/1)
-      end
-
-      def republish_dead_messages(number) do
-        HareMq.Worker.Consumer.republish_dead_messages(__MODULE__,number)
+        HareMq.DynamicSupervisor.start_link(config: @config, consume: &consume/1)
       end
 
       def consume(message) do
