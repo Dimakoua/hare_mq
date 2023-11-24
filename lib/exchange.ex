@@ -1,4 +1,5 @@
 defmodule HareMq.Exchange do
+  alias HareMq.Configuration
   @default_type Application.compile_env(:hare_mq, :exchange_type, :direct)
 
   @moduledoc """
@@ -43,6 +44,12 @@ defmodule HareMq.Exchange do
 
       HareMq.Exchange.bind(channel: channel, destination: "destination_exchange", source: "my_exchange", routing_key: "my_routing_key")
   """
+  def bind(%Configuration{} = config) do
+    AMQP.Exchange.bind(config.channel, config.queue_name, config.exchange,
+      routing_key: config.routing_key
+    )
+  end
+
   def bind(channel: channel, destination: destination, source: source, routing_key: routing_key) do
     AMQP.Exchange.bind(channel, destination, source, routing_key: routing_key)
   end

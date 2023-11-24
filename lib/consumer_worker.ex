@@ -24,10 +24,12 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def declare_queues(config) do
-    :ok = HareMq.Exchange.declare(channel: config.channel, name: config.exchange)
+    :ok = HareMq.Exchange.declare(channel: config.channel, name: config.exchange, type: :topic)
+    :ok = HareMq.Exchange.declare(channel: config.channel, name: config.queue_name, type: :topic)
     {:ok, _} = HareMq.Queue.declare_queue(config)
     {:ok, _} = HareMq.Queue.declare_delay_queue(config)
     {:ok, _} = HareMq.Queue.declare_dead_queue(config)
+    :ok = HareMq.Exchange.bind(config)
     :ok = HareMq.Queue.bind(config)
   end
 

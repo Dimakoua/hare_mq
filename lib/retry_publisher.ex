@@ -91,8 +91,8 @@ defmodule HareMq.RetryPublisher do
           :ok =
             AMQP.Basic.publish(
               configuration.channel,
-              configuration.exchange,
-              configuration.routing_key,
+              "",
+              configuration.queue_name,
               message,
               persistent: true
             )
