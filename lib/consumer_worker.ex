@@ -69,7 +69,7 @@ defmodule HareMq.Worker.Consumer do
     {:reply, state, state}
   end
 
-  def handle_info({:connect, [config: config, consume: consume]}, state) do
+  def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
     case HareMq.Connection.get_connection() do
       {:ok, conn} ->
         # Get notifications when the connection goes down
@@ -98,14 +98,14 @@ defmodule HareMq.Worker.Consumer do
 
           _ ->
             Logger.error("Faile to open channel!")
-            Process.send_after(self(), :send, @reconnect_interval)
+            Process.send_after(self(), {:connect, opts}, @reconnect_interval)
             {:noreply, state}
         end
 
       {:error, _} ->
         Logger.error("Failed to connect. Reconnecting later...")
         # Retry later
-        Process.send_after(self(), :connect, @reconnect_interval)
+        Process.send_after(self(), {:connect, opts}, @reconnect_interval)
         {:noreply, state}
     end
   end
@@ -168,6 +168,8 @@ defmodule HareMq.Worker.Consumer do
     try do
       AMQP.Channel.close(state.channel)
     rescue
+      _ -> :ok
+    catch
       _ -> :ok
     end
   end

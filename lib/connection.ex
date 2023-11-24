@@ -36,8 +36,8 @@ defmodule HareMq.Connection do
   """
   def get_connection do
     case GenServer.call(__MODULE__, :get_connection) do
-      nil -> {:error, :not_connected}
       %AMQP.Connection{} = conn -> {:ok, conn}
+      _ -> {:error, :not_connected}
     end
   end
 
