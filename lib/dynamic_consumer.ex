@@ -40,6 +40,11 @@ defmodule HareMq.DynamicConsumer do
         HareMq.DynamicSupervisor.start_link(config: @config, consume: &consume/1)
       end
 
+      def republish_dead_messages(count) do
+        [{pid, nil}] = Registry.lookup(:consumers, "#{@config[:consumer_worker]}.W1")
+        HareMq.Worker.Consumer.republish_dead_messages(pid ,count)
+      end
+
       def consume(message) do
         raise "Implement me"
       end

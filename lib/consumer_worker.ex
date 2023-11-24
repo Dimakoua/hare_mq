@@ -8,7 +8,12 @@ defmodule HareMq.Worker.Consumer do
                       ] || 10_000
 
   def start_link([config: config, consume: _] = opts) do
-    GenServer.start_link(__MODULE__, opts, name: config[:consumer_name])
+    GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {:consumers, config[:consumer_name]}})
+  end
+
+  # start from Dynamic Supervisor
+  def start_link({name, opts}) do
+    GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {:consumers, name}})
   end
 
   def init([config: _, consume: _] = opts) do

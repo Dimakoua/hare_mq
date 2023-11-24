@@ -43,7 +43,8 @@ defmodule HareMq.Consumer do
       end
 
       def republish_dead_messages(number) do
-        HareMq.Worker.Consumer.republish_dead_messages(__MODULE__,number)
+        [{pid, nil}] = Registry.lookup(:consumers, @config[:consumer_name])
+        HareMq.Worker.Consumer.republish_dead_messages(pid,number)
       end
 
       def consume(message) do

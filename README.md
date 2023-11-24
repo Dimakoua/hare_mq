@@ -81,7 +81,7 @@ The consumer_count: 10 option indicates that it should run 10 worker processes.
 ### Dynamic Consumer
 ```elixir
 defmodule MyApp.MessageConsumer do
-  use HareMq.Consumer,
+  use HareMq.DynamicConsumer,
     queue_name: "queue_name",
     routing_key: "routing_key",
     exchange: "exchange",

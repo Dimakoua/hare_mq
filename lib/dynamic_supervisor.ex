@@ -26,7 +26,7 @@ defmodule HareMq.DynamicSupervisor do
     Enum.each(1..config[:consumer_count], fn number ->
       start_child(
         worker: config[:consumer_worker],
-        name: String.to_atom("#{config[:consumer_worker]}.#{number}"),
+        name: "#{config[:consumer_worker]}.W#{number}",
         opts: opts
       )
     end)
@@ -41,7 +41,6 @@ defmodule HareMq.DynamicSupervisor do
       {:ok, #PID<0.124.0>}
   """
   def start_child(worker: worker, name: name, opts: opts) do
-    spec = %{id: name, start: {worker, :start_link, [opts]}}
-    DynamicSupervisor.start_child(__MODULE__, spec)
+    DynamicSupervisor.start_child(__MODULE__, {worker, {name, opts}})
   end
 end
