@@ -4,9 +4,8 @@ defmodule HareMq.DynamicConsumer do
   end
 
   @moduledoc """
-  GenServer module implementing a RabbitMQ consumer.
-
-  This module provides a behavior for RabbitMQ message consumption, including connecting to RabbitMQ, declaring queues, and handling incoming messages.
+  This module provides a dynamic supervisor for managing worker processes in the HareMq application.
+  It is designed to start a configurable number of consumer processes to handle message consumption.
   """
 
   defmacro __using__(options) do
