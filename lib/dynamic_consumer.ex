@@ -40,9 +40,17 @@ defmodule HareMq.DynamicConsumer do
         HareMq.DynamicSupervisor.start_link(config: @config, consume: &consume/1)
       end
 
-      def republish_dead_messages(count) do
-        [{pid, nil}] = Registry.lookup(:consumers, "#{@config[:consumer_worker]}.W1")
-        HareMq.Worker.Consumer.republish_dead_messages(pid ,count)
+      def republish_dead_messages(count), do: traverse_consumers(count, 1)
+
+      defp traverse_consumers(count, consumer_number) do
+        if consumer_number == @config[:consumer_count] do
+          {:error, :process_not_alive}
+        else
+          case Registry.lookup(:consumers, "#{@config[:consumer_worker]}.W#{consumer_number}") do
+            [{pid, nil}] -> HareMq.Worker.Consumer.republish_dead_messages(pid, count)
+            _ -> traverse_consumers(count, consumer_number + 1)
+          end
+        end
       end
 
       def consume(message) do

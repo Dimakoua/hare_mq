@@ -8,7 +8,9 @@ defmodule HareMq.Worker.Consumer do
                       ] || 10_000
 
   def start_link([config: config, consume: _] = opts) do
-    GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {:consumers, config[:consumer_name]}})
+    GenServer.start_link(__MODULE__, opts,
+      name: {:via, Registry, {:consumers, config[:consumer_name]}}
+    )
   end
 
   # start from Dynamic Supervisor
@@ -150,13 +152,11 @@ defmodule HareMq.Worker.Consumer do
 
   def handle_info({:DOWN, _, :process, _pid, reason}, state) do
     Logger.error("worker #{__MODULE__} was DOWN")
-    close_chan(state)
-    {:stop, {:connection_lost, reason}, nil}
+    {:stop, {:connection_lost, reason}, state}
   end
 
-  def handle_info({:EXIT, _pid, _reason}, state) do
-    close_chan(state)
-    {:noreply, state}
+  def handle_info({:EXIT, _pid, reason}, state) do
+    {:stop, {:connection_lost, reason}, state}
   end
 
   def terminate(_reason, state) do
@@ -164,13 +164,11 @@ defmodule HareMq.Worker.Consumer do
     close_chan(state)
   end
 
+  defp close_chan(%HareMq.Configuration{channel: nil}), do: :ok
+
   defp close_chan(state) do
-    try do
+    if Process.alive?(state.channel.pid) do
       AMQP.Channel.close(state.channel)
-    rescue
-      _ -> :ok
-    catch
-      _ -> :ok
     end
   end
 end
