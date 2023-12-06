@@ -87,7 +87,6 @@ end
 ## Configuration
 ```elixir
 config :hare_mq, 
-  exchange_type: :direct|:topic,
   :amqp,
     host: "localhost",
     url: "amqp://guest:guest@myhost:12345",
