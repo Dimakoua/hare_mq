@@ -7,7 +7,7 @@ defmodule HareMq do
   ```elixir
   defp deps do
   [
-    {:hare_mq, "~> 0.1.2"}
+    {:hare_mq, "~> 1.0.0"}
   ]
   end
   ```
@@ -87,7 +87,16 @@ defmodule HareMq do
     url: "amqp://guest:guest@myhost:12345",
     user: "guest",
     password: "guest"
+
+  config :hare_mq, :configuration,
+    delay_in_ms: 10_000,
+    retry_limit: 15,
+    message_ttl: 31_449_600
   ```
+
+  ## Rate Us:
+  If you enjoy using HareMq, please consider giving us a star on GitHub! Your feedback and support are highly appreciated.
+  [GitHub](https://github.com/Dimakoua/hare_mq)
   """
   use Application
   require Logger
@@ -95,7 +104,7 @@ defmodule HareMq do
   def start(_type, _args) do
     children = [
       HareMq.Connection,
-      {Registry, keys: :unique, name: :consumers},
+      {Registry, keys: :unique, name: :consumers}
     ]
 
     opts = [strategy: :one_for_one, name: HareMq.Supervisor]
