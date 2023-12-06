@@ -19,7 +19,7 @@ defmodule HareMq.Queue do
       HareMq.Queue.bind(%Configuration{channel: channel, queue_name: "my_queue", exchange: "my_exchange", routing_key: "my_routing_key"})
   """
   def bind(%Configuration{} = config) do
-    AMQP.Queue.bind(config.channel, config.queue_name, config.exchange,
+    AMQP.Queue.bind(config.channel, config.queue_name, config.queue_name,
       routing_key: config.routing_key
     )
   end
@@ -60,7 +60,7 @@ defmodule HareMq.Queue do
       config.delay_queue_name,
       durable: config.durable,
       arguments: [
-        {"x-dead-letter-exchange", :longstr, config.exchange},
+        {"x-dead-letter-exchange", :longstr, config.queue_name},
         {"x-dead-letter-routing-key", :longstr, config.routing_key},
         {"x-message-ttl", :long, config.delay_in_ms}
       ]

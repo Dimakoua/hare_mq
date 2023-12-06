@@ -7,7 +7,7 @@ defmodule HareMq do
   ```elixir
   defp deps do
   [
-    {:hare_mq, "~> 0.1.2"}
+    {:hare_mq, "~> 1.0.0"}
   ]
   end
   ```
@@ -43,6 +43,24 @@ defmodule HareMq do
   end
   ```
 
+  The consumer_count: 10 option indicates that it should run 10 worker processes.
+  ### Dynamic Consumer
+  ```elixir
+  defmodule MyApp.MessageConsumer do
+    use HareMq.DynamicConsumer,
+      queue_name: "queue_name",
+      routing_key: "routing_key",
+      exchange: "exchange",
+      consumer_count: 10
+
+    # Function to process a received message.
+    def consume(message) do
+      # Log the beginning of the message processing.
+      IO.puts("Processing message: \#{inspect(message)}")
+    end
+  end
+  ```
+
   ### Usage in Application: MyApp.Application
   ```elixir
   defmodule MyApp.Application do
@@ -69,14 +87,24 @@ defmodule HareMq do
     url: "amqp://guest:guest@myhost:12345",
     user: "guest",
     password: "guest"
+
+  config :hare_mq, :configuration,
+    delay_in_ms: 10_000,
+    retry_limit: 15,
+    message_ttl: 31_449_600
   ```
+
+  ## Rate Us:
+  If you enjoy using HareMq, please consider giving us a star on GitHub! Your feedback and support are highly appreciated.
+  [GitHub](https://github.com/Dimakoua/hare_mq)
   """
   use Application
   require Logger
 
   def start(_type, _args) do
     children = [
-      HareMq.Connection
+      HareMq.Connection,
+      {Registry, keys: :unique, name: :consumers}
     ]
 
     opts = [strategy: :one_for_one, name: HareMq.Supervisor]
