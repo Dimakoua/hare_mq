@@ -27,8 +27,19 @@ jobs:
 
     strategy:
       matrix:
-        elixir: [1.14]
-        otp: [24.0]
+        include:
+          - otp: 26.x
+            elixir: 1.17.x
+          - otp: 26.x
+            elixir: 1.16.x
+          - otp: 26.x
+            elixir: 1.15.x
+          - otp: 26.x
+            elixir: 1.14.X
+          - otp: 25.x
+            elixir: 1.13.4
+          - otp: 24.x
+            elixir: 1.12.3
 
     steps:
       - name: Checkout code
