@@ -1,6 +1,7 @@
+require Logger
+use AMQP
+
 defmodule HareMq.Worker.Consumer do
-  require Logger
-  use AMQP
   use GenServer
 
   @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
@@ -159,8 +160,11 @@ defmodule HareMq.Worker.Consumer do
     {:stop, {:connection_lost, reason}, state}
   end
 
-  def terminate(_reason, state) do
-    Logger.error("worker #{__MODULE__} was terminated with state #{inspect(state)}")
+  def terminate(reason, state) do
+    Logger.debug(
+      "worker #{__MODULE__} was terminated with reason #{inspect(reason)} state #{inspect(state)}"
+    )
+
     close_chan(state)
   end
 
