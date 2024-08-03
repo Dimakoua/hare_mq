@@ -54,8 +54,6 @@ defmodule HareMq.Worker.ConsumerTest do
   test "publishing and consuming messages" do
     {:ok, pub_pid} = TestPublisher.start_link()
 
-    wait_until(fn -> :ok = TestPublisher.publish_message(@test_message) end)
-
     {:ok, cons_pid} =
       TestConsumer.start_link(
         config: %{
@@ -66,7 +64,11 @@ defmodule HareMq.Worker.ConsumerTest do
         consume: &TestConsumer.consume/1
       )
 
-    Process.sleep(300)
+    Process.sleep(200)
+
+    wait_until(fn -> :ok = TestPublisher.publish_message(@test_message) end)
+
+    Process.sleep(200)
 
     assert :ok = GenServer.stop(pub_pid)
     assert :ok = GenServer.stop(cons_pid)
