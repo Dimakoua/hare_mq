@@ -88,9 +88,16 @@ defmodule HareMq.Publisher do
         {:stop, {:connection_lost, reason}, state}
       end
 
-      def terminate(_reason, state) do
-        Logger.error("worker #{__MODULE__} was terminated with state #{inspect(state)}")
-        # close_chan(state)
+      def handle_info(reason, state) do
+        {:stop, {:connection_lost, reason}, state}
+      end
+
+      def terminate(reason, state) do
+        Logger.debug(
+          "worker #{__MODULE__} was terminated #{inspect(reason)} with state #{inspect(state)}"
+        )
+
+        close_chan(state)
       end
 
       defp close_chan(%AMQP.Channel{} = channel) do
