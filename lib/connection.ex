@@ -81,6 +81,10 @@ defmodule HareMq.Connection do
     {:reply, state, state}
   end
 
+  def handle_call(:close_connection, _, state) do
+    {:reply, nil, state}
+  end
+
   def handle_info(:connect, _) do
     configs = Application.get_env(:hare_mq, :amqp)
     host = configs[:url]
@@ -98,9 +102,8 @@ defmodule HareMq.Connection do
     end
   end
 
-  def handle_info({:DOWN, _, :process, _pid, reason}, _) do
-    # Stop GenServer. Will be restarted by Supervisor.
-    {:stop, {:connection_lost, reason}, nil}
+  def handle_info({:DOWN, _, :process, _pid, {:shutdown, :normal}}, _) do
+    {:noreply, nil}
   end
 
   def handle_info(reason, _state) do
