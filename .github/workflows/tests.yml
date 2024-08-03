@@ -1,0 +1,71 @@
+name: Elixir CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmqctl status"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    strategy:
+      matrix:
+        include:
+          - otp: 26.x
+            elixir: 1.17.x
+          - otp: 26.x
+            elixir: 1.16.x
+          - otp: 26.x
+            elixir: 1.15.x
+          - otp: 26.x
+            elixir: 1.14.X
+          - otp: 25.x
+            elixir: 1.13.4
+          - otp: 24.x
+            elixir: 1.12.3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Wait for RabbitMQ
+        run: |
+          until curl -sS http://localhost:15672/api/overview --user guest:guest | grep -q 'rabbitmq_version'; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+
+      - name: Run tests
+        env:
+          MIX_ENV: test
+          RABBITMQ_HOST: localhost
+          RABBITMQ_URL: amqp://guest:guest@localhost
+          RABBITMQ_USER: guest
+          RABBITMQ_PASSWORD: guest
+        run: mix test
