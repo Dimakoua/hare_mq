@@ -1,5 +1,5 @@
 defmodule HareMq.PublisherTest do
-  use ExUnit.Case
+  use HareMq.TestCase
   alias HareMq.Connection
 
   defmodule TestPublisher do
@@ -8,7 +8,6 @@ defmodule HareMq.PublisherTest do
 
   setup do
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
-
     Connection.start_link(nil)
     :ok
   end
