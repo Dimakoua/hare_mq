@@ -3,7 +3,6 @@ defmodule HareMq.ConnectionTest do
   alias HareMq.Connection
 
   setup do
-    Application.put_env(:hare_mq, :amqp, %{url: "amqp://guest:guest@localhost"})
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
   end
 

@@ -7,8 +7,6 @@ defmodule HareMq.PublisherTest do
   end
 
   setup do
-    # Set necessary application environment configurations for real RabbitMQ connection
-    Application.put_env(:hare_mq, :amqp, %{url: "amqp://guest:guest@localhost"})
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
 
     Connection.start_link(nil)

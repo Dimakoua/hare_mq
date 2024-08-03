@@ -1,0 +1,63 @@
+name: Elixir CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmqctl status"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    strategy:
+      matrix:
+        elixir: [1.12.3, 1.13.4, 1.14.0]
+        otp: [23.3, 24.1, 25.0]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Wait for RabbitMQ
+        run: |
+          until curl -sS http://localhost:15672/api/overview --user guest:guest | grep -q 'rabbitmq_version'; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+
+      - name: Run tests
+        env:
+          MIX_ENV: test
+          RABBITMQ_HOST: localhost
+          RABBITMQ_URL: amqp://guest:guest@localhost
+          RABBITMQ_USER: guest
+          RABBITMQ_PASSWORD: guest
+        run: mix test
+
+      - name: Generate coverage report
+        if: always()
+        run: mix coveralls.json
