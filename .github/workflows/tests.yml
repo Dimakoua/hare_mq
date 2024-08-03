@@ -57,4 +57,4 @@ jobs:
           RABBITMQ_URL: amqp://guest:guest@localhost
           RABBITMQ_USER: guest
           RABBITMQ_PASSWORD: guest
-        run: mix test --cover
+        run: mix test
