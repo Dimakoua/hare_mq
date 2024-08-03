@@ -1,6 +1,7 @@
+require Logger
+use AMQP
+
 defmodule HareMq.Worker.Consumer do
-  require Logger
-  use AMQP
   use GenServer
 
   @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
@@ -99,13 +100,13 @@ defmodule HareMq.Worker.Consumer do
             {:noreply, queue_configuration}
 
           _ ->
-            Logger.error("Faile to open channel!")
+            Logger.error("[consumer_worker] Faile to open channel!")
             Process.send_after(self(), {:connect, opts}, @reconnect_interval)
             {:noreply, state}
         end
 
       {:error, _} ->
-        Logger.error("Failed to connect. Reconnecting later...")
+        Logger.error("[consumer_worker] Failed to connect. Reconnecting later...")
         # Retry later
         Process.send_after(self(), {:connect, opts}, @reconnect_interval)
         {:noreply, state}
@@ -159,8 +160,11 @@ defmodule HareMq.Worker.Consumer do
     {:stop, {:connection_lost, reason}, state}
   end
 
-  def terminate(_reason, state) do
-    Logger.error("worker #{__MODULE__} was terminated with state #{inspect(state)}")
+  def terminate(reason, state) do
+    Logger.debug(
+      "worker #{__MODULE__} was terminated with reason #{inspect(reason)} state #{inspect(state)}"
+    )
+
     close_chan(state)
   end
 

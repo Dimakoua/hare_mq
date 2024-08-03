@@ -4,10 +4,11 @@ defmodule HareMq.MixProject do
   def project do
     [
       app: :hare_mq,
-      version: "1.0.0",
+      version: "1.0.1",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      test_paths: ["test", "lib"],
       package: [
         licenses: ["MIT"],
         links: %{"GitHub" => "https://github.com/Dimakoua/hare_mq"}
@@ -21,8 +22,16 @@ defmodule HareMq.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {HareMq, []}
+      mod: mod()
     ]
+  end
+
+  defp mod do
+    if Mix.env() == :test do
+      []
+    else
+      {HareMq, []}
+    end
   end
 
   # Run "mix help deps" to learn about dependencies.

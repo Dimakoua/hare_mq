@@ -66,13 +66,13 @@ defmodule HareMq.Publisher do
                 {:noreply, chan}
 
               _ ->
-                Logger.error("Faile to open channel!")
+                Logger.error("[publisher] Faile to open channel!")
                 Process.send_after(self(), :connect, @reconnect_interval)
                 {:noreply, state}
             end
 
           {:error, _} ->
-            Logger.error("Failed to connect. Reconnecting later...")
+            Logger.error("[publisher] Failed to connect. Reconnecting later...")
             # Retry later
             Process.send_after(self(), :connect, @reconnect_interval)
             {:noreply, nil}
@@ -88,9 +88,16 @@ defmodule HareMq.Publisher do
         {:stop, {:connection_lost, reason}, state}
       end
 
-      def terminate(_reason, state) do
-        Logger.error("worker #{__MODULE__} was terminated with state #{inspect(state)}")
-        # close_chan(state)
+      def handle_info(reason, state) do
+        {:stop, {:connection_lost, reason}, state}
+      end
+
+      def terminate(reason, state) do
+        Logger.debug(
+          "worker #{__MODULE__} was terminated #{inspect(reason)} with state #{inspect(state)}"
+        )
+
+        close_chan(state)
       end
 
       defp close_chan(%AMQP.Channel{} = channel) do
