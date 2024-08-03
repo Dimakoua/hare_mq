@@ -118,7 +118,7 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info({:basic_cancel, %{consumer_tag: _consumer_tag}}, state) do
-    Logger.warn(
+    Logger.info(
       "Sent by the broker when the consumer is unexpectedly cancelled (such as after a queue deletion)"
     )
 
