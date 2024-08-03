@@ -100,13 +100,13 @@ defmodule HareMq.Worker.Consumer do
             {:noreply, queue_configuration}
 
           _ ->
-            Logger.error("Faile to open channel!")
+            Logger.error("[consumer_worker] Faile to open channel!")
             Process.send_after(self(), {:connect, opts}, @reconnect_interval)
             {:noreply, state}
         end
 
       {:error, _} ->
-        Logger.error("Failed to connect. Reconnecting later...")
+        Logger.error("[consumer_worker] Failed to connect. Reconnecting later...")
         # Retry later
         Process.send_after(self(), {:connect, opts}, @reconnect_interval)
         {:noreply, state}

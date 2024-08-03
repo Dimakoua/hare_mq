@@ -30,7 +30,7 @@ defmodule HareMq.MixProject do
     if Mix.env() == :test do
       []
     else
-      {HareMq.Application, []}
+      {HareMq, []}
     end
   end
 

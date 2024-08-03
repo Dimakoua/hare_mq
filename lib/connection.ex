@@ -95,7 +95,7 @@ defmodule HareMq.Connection do
         {:noreply, conn}
 
       {:error, _} ->
-        Logger.error("Failed to connect #{host}. Reconnecting later...")
+        Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
 
         Process.send_after(self(), :connect, @reconnect_interval)
         {:noreply, nil}

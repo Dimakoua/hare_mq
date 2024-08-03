@@ -66,13 +66,13 @@ defmodule HareMq.Publisher do
                 {:noreply, chan}
 
               _ ->
-                Logger.error("Faile to open channel!")
+                Logger.error("[publisher] Faile to open channel!")
                 Process.send_after(self(), :connect, @reconnect_interval)
                 {:noreply, state}
             end
 
           {:error, _} ->
-            Logger.error("Failed to connect. Reconnecting later...")
+            Logger.error("[publisher] Failed to connect. Reconnecting later...")
             # Retry later
             Process.send_after(self(), :connect, @reconnect_interval)
             {:noreply, nil}
