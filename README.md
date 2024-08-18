@@ -1,5 +1,17 @@
 # HareMq
 
+## Watch video tutorial
+
+### Introduction
+Learn the basics of HareMq and how it can simplify your interaction with AMQP systems.
+
+[![Watch the video](https://img.youtube.com/vi/cohYx1E3d0s/hqdefault.jpg)](https://youtu.be/cohYx1E3d0s)
+
+### Totorial
+Dive deeper into the features and capabilities of HareMq with our step-by-step tutorial.
+
+[![Watch the video](https://img.youtube.com/vi/iajN-1gCr34/hqdefault.jpg)](https://youtu.be/iajN-1gCr34)
+
 HareMq is an Elixir library for interacting with AMQP (Advanced Message Queuing Protocol) systems, such as RabbitMQ. It provides modules for configuring connections, declaring queues and exchanges, publishing messages, and handling message retries.
 
 ## Getting Started
