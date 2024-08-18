@@ -9,7 +9,7 @@ Learn the basics of HareMq and how it can simplify your interaction with AMQP sy
 
 [![Watch the video](https://img.youtube.com/vi/cohYx1E3d0s/hqdefault.jpg)](https://youtu.be/cohYx1E3d0s)
 
-### Totorial
+### Tutorial
 Dive deeper into the features and capabilities of HareMq with our step-by-step tutorial.
 
 [![Watch the video](https://img.youtube.com/vi/iajN-1gCr34/hqdefault.jpg)](https://youtu.be/iajN-1gCr34)
