@@ -8,7 +8,6 @@ defmodule HareMq.DedupCache do
 
   # GenServer callbacks
   def init(_opts) do
-    Process.send_after(self(), :clear_cache, 1_000)
     {:ok, %{}}
   end
 
@@ -28,6 +27,8 @@ defmodule HareMq.DedupCache do
       end)
       |> Enum.into(%{})
 
+    Process.send_after(self(), :clear_cache, 1_000)
+
     {:noreply, new_state}
   end
 
@@ -40,6 +41,8 @@ defmodule HareMq.DedupCache do
       |> Map.put(:inserted_at, :os.system_time(:millisecond))
 
     new_state = Map.put(state, hash, message)
+
+    Process.send_after(self(), :clear_cache, 1_000)
 
     {:noreply, new_state}
   end
