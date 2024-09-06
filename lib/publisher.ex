@@ -160,7 +160,7 @@ defmodule HareMq.Publisher do
             end
           end
       """
-      def publish_message(messsage) do
+      def publish_message(message) do
         deduplication_ttl = Map.get(@opts, :deduplication_ttl, nil)
 
         if(deduplication_ttl) do
