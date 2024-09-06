@@ -112,7 +112,7 @@ defmodule HareMq.Publisher do
 
   defmacro __before_compile__(_env) do
     quote location: :keep, generated: true do
-      def publish_message(message) when is_map(message) do
+      defp publish(message) when is_map(message) do
         case get_channel() do
           {:error, :not_connected} ->
             {:error, :not_connected}
@@ -125,6 +125,22 @@ defmodule HareMq.Publisher do
               @config[:exchange],
               @config[:routing_key],
               encoded_message,
+              persistent: true
+            )
+        end
+      end
+
+      defp publish(message) when is_binary(message) do
+        case get_channel() do
+          {:error, :not_connected} ->
+            {:error, :not_connected}
+
+          {:ok, channel} ->
+            AMQP.Basic.publish(
+              channel,
+              @config[:exchange],
+              @config[:routing_key],
+              message,
               persistent: true
             )
         end
@@ -144,19 +160,18 @@ defmodule HareMq.Publisher do
             end
           end
       """
-      def publish_message(message) when is_binary(message) do
-        case get_channel() do
-          {:error, :not_connected} ->
-            {:error, :not_connected}
+      def publish_message(messsage) do
+        deduplication_ttl = Map.get(@opts, :deduplication_ttl, nil)
 
-          {:ok, channel} ->
-            AMQP.Basic.publish(
-              channel,
-              @config[:exchange],
-              @config[:routing_key],
-              message,
-              persistent: true
-            )
+        if(deduplication_ttl) do
+          if(HareMq.DedupCache.is_dup?(message, deduplication_ttl)) do
+            HareMq.DedupCache.add(message)
+            publish(message)
+          else
+            {:duplicate, :not_published}
+          end
+        else
+          publish(message)
         end
       end
     end
