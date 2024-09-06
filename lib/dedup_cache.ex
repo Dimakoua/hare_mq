@@ -8,7 +8,7 @@ defmodule HareMq.DedupCache do
 
   # GenServer callbacks
   def init(_opts) do
-    send(self(), :clear_cache)
+    Process.send_after(self(), :clear_cache, 1_000)
     {:ok, %{}}
   end
 
