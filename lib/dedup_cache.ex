@@ -31,27 +31,32 @@ defmodule HareMq.DedupCache do
     {:noreply, new_state}
   end
 
-  def handle_info({:add, message}, state) do
+  def handle_cast({:add, message}, state) do
+    hash = generate_hash(message)
+
     message =
       %{}
       |> Map.put(:message, message)
       |> Map.put(:inserted_at, :os.system_time(:millisecond))
-
-    hash = generate_hash(message)
 
     new_state = Map.put(state, hash, message)
 
     {:noreply, new_state}
   end
 
-  def handle_call({:is_dup, message, deduplication_ttl}, _from, state) when is_binary(message) do
+  def handle_call({:is_dup, message, deduplication_ttl}, _from, state) do
     hash = generate_hash(message)
 
     is_dup =
       case Map.get(state, hash) do
-        nil -> false
-        _ when deduplication_ttl == :infinite -> true
-        cached_message -> cached_message.inserted_at + deduplication_ttl < :os.system_time(:millisecond)
+        nil ->
+          false
+
+        _ when deduplication_ttl == :infinite ->
+          true
+
+        cached_message ->
+          cached_message.inserted_at + deduplication_ttl > :os.system_time(:millisecond)
       end
 
     {:reply, is_dup, state}

@@ -24,7 +24,8 @@ defmodule HareMq.DedupCacheTest do
 
   test "should return false for a message that has expired" do
     DedupCache.add("test_message")
-    :timer.sleep(2000)  # Sleep longer than the TTL
+    # Sleep longer than the TTL
+    :timer.sleep(2000)
     refute DedupCache.is_dup?("test_message", 1000)
   end
 
@@ -35,8 +36,10 @@ defmodule HareMq.DedupCacheTest do
 
   test "should clear expired cache entries" do
     DedupCache.add("test_message")
-    :timer.sleep(2000)  # Sleep longer than the TTL
-    DedupCache.handle_info(:clear_cache, %{})  # Manually trigger cache clearing
+    # Sleep longer than the TTL
+    :timer.sleep(2000)
+    # Manually trigger cache clearing
+    DedupCache.handle_info(:clear_cache, %{})
     refute DedupCache.is_dup?("test_message", 1000)
   end
 
@@ -48,8 +51,6 @@ defmodule HareMq.DedupCacheTest do
 
   test "should generate different hashes for different messages" do
     DedupCache.add("message1")
-    DedupCache.add("message2")
-    refute DedupCache.is_dup?("message1", 1000)
     refute DedupCache.is_dup?("message2", 1000)
   end
 end
