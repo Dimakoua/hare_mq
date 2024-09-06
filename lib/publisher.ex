@@ -161,7 +161,7 @@ defmodule HareMq.Publisher do
           end
       """
       def publish_message(message) do
-        deduplication_ttl = Map.get(@opts, :deduplication_ttl, nil)
+        deduplication_ttl = Keyword.get(@opts, :deduplication_ttl, nil)
 
         if(deduplication_ttl) do
           if(HareMq.DedupCache.is_dup?(message, deduplication_ttl)) do
