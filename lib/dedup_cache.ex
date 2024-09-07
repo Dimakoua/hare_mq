@@ -12,19 +12,19 @@ defmodule HareMq.DedupCache do
     {:ok, %{}}
   end
 
-  def is_dup?(message, deduplication_ttl, deduplication_keys \\ []) do
-    GenServer.call(__MODULE__, {:is_dup, message, deduplication_ttl, deduplication_keys})
+  def is_dup?(message, deduplication_keys \\ []) do
+    GenServer.call(__MODULE__, {:is_dup, message, deduplication_keys})
   end
 
-  def add(message, deduplication_keys \\ []) do
-    GenServer.cast(__MODULE__, {:add, message, deduplication_keys})
+  def add(message, deduplication_ttl, deduplication_keys \\ []) do
+    GenServer.cast(__MODULE__, {:add, message, deduplication_ttl, deduplication_keys})
   end
 
   def handle_info(:clear_cache, state) do
     new_state =
       state
       |> Enum.filter(fn {_k, v} ->
-        v.inserted_at > :os.system_time(:millisecond)
+        v.expired_at > :os.system_time(:millisecond)
       end)
       |> Enum.into(%{})
 
@@ -33,20 +33,27 @@ defmodule HareMq.DedupCache do
     {:noreply, new_state}
   end
 
-  def handle_cast({:add, message, deduplication_keys}, state) do
+  def handle_cast({:add, message, deduplication_ttl, deduplication_keys}, state) do
     hash = generate_hash(message, deduplication_keys)
+
+    deduplication_ttl =
+      case deduplication_ttl do
+        # 5 years
+        :infinity -> 31_556_952_000 * 5
+        _ -> deduplication_ttl
+      end
 
     message =
       %{}
       |> Map.put(:message, message)
-      |> Map.put(:inserted_at, :os.system_time(:millisecond))
+      |> Map.put(:expired_at, :os.system_time(:millisecond) + deduplication_ttl)
 
     new_state = Map.put(state, hash, message)
 
     {:noreply, new_state}
   end
 
-  def handle_call({:is_dup, message, deduplication_ttl, deduplication_keys}, _from, state) do
+  def handle_call({:is_dup, message, deduplication_keys}, _from, state) do
     hash = generate_hash(message, deduplication_keys)
 
     is_dup =
@@ -54,19 +61,18 @@ defmodule HareMq.DedupCache do
         nil ->
           false
 
-        cached_message when deduplication_ttl == :infinite ->
-          Enum.all?(deduplication_keys, fn key -> message[key] === cached_message.message[key] end)
-
-        cached_message ->
+        %{message: message} = cached_message when is_map(message) ->
           is_dub_by_keys =
             Enum.all?(deduplication_keys, fn key ->
               message[key] === cached_message.message[key]
             end)
 
-          is_cached =
-            cached_message.inserted_at + deduplication_ttl > :os.system_time(:millisecond)
+          is_cached = cached_message.expired_at > :os.system_time(:millisecond)
 
           is_dub_by_keys && is_cached
+
+        %{message: message} = cached_message when is_binary(message) ->
+          cached_message.expired_at > :os.system_time(:millisecond)
       end
 
     {:reply, is_dup, state}

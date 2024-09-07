@@ -172,8 +172,8 @@ defmodule HareMq.Publisher do
         deduplication_keys = Keyword.get(unique, :keys, [])
 
         if(deduplication_ttl) do
-          unless(HareMq.DedupCache.is_dup?(message, deduplication_keys, deduplication_ttl)) do
-            HareMq.DedupCache.add(message, deduplication_keys)
+          unless(HareMq.DedupCache.is_dup?(message, deduplication_keys)) do
+            HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys)
             publish(message)
           else
             {:duplicate, :not_published}
