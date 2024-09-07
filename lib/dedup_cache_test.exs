@@ -40,7 +40,6 @@ defmodule HareMq.DedupCacheTest do
 
   test "TTL functionality" do
     message1 = %{id: 1, key: 1, value: 2}
-    message2 = %{id: 2, key: 1, value: 2}
 
     HareMq.DedupCache.add(message1, 1000)
 
@@ -48,7 +47,7 @@ defmodule HareMq.DedupCacheTest do
     # Sleep for longer than TTL
     :timer.sleep(1500)
     # Should return false after TTL expires
-    refute HareMq.DedupCache.is_dup?(message2, [:key, :value])
+    refute HareMq.DedupCache.is_dup?(message1)
   end
 
   test "infinite TTL" do
