@@ -112,7 +112,7 @@ defmodule HareMq.Publisher do
 
   defmacro __before_compile__(_env) do
     quote location: :keep, generated: true do
-      def publish_message(message) when is_map(message) do
+      defp publish(message) when is_map(message) do
         case get_channel() do
           {:error, :not_connected} ->
             {:error, :not_connected}
@@ -130,21 +130,7 @@ defmodule HareMq.Publisher do
         end
       end
 
-      @doc """
-      Func for publishing messages.
-
-      ## Examples
-
-          defmodule MyPublisher do
-            use HareMq.Publisher, exchange: "my_exchange", routing_key: "my_routing_key"
-
-            def publish() do
-              message = %{key: "value"}
-              HareMq.Publisher.publish_message(message)
-            end
-          end
-      """
-      def publish_message(message) when is_binary(message) do
+      defp publish(message) when is_binary(message) do
         case get_channel() do
           {:error, :not_connected} ->
             {:error, :not_connected}
@@ -157,6 +143,43 @@ defmodule HareMq.Publisher do
               message,
               persistent: true
             )
+        end
+      end
+
+      @doc """
+      Func for publishing messages.
+
+      ## Examples
+
+          defmodule MyPublisher do
+            use HareMq.Publisher,
+                exchange: "my_exchange",
+                routing_key: "my_routing_key"
+                unique: [
+                  period: :infinity,
+                  keys: [:project_id]
+                ]
+
+            def publish() do
+              message = %{key: "value"}
+              HareMq.Publisher.publish_message(message)
+            end
+          end
+      """
+      def publish_message(message) do
+        unique = Keyword.get(@opts, :unique, [])
+        deduplication_ttl = Keyword.get(unique, :period, nil)
+        deduplication_keys = Keyword.get(unique, :keys, [])
+
+        if(deduplication_ttl) do
+          unless(HareMq.DedupCache.is_dup?(message, deduplication_keys)) do
+            HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys)
+            publish(message)
+          else
+            {:duplicate, :not_published}
+          end
+        else
+          publish(message)
         end
       end
     end
