@@ -3,10 +3,6 @@ defmodule HareMq.DedupCacheTest do
   alias HareMq.Connection
   alias HareMq.DedupCache
 
-  defmodule TestPublisher do
-    use HareMq.Publisher, exchange: "test_routing_key", routing_key: "test_routing_key"
-  end
-
   setup do
     Connection.start_link(nil)
     {:ok, _pid} = DedupCache.start_link([])
