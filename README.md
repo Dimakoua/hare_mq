@@ -23,7 +23,7 @@ Install the required dependencies by adding them to your `mix.exs` file:
 ```elixir
 defp deps do
   [
-    {:hare_mq, "~> 1.0.4"}
+    {:hare_mq, "~> 1.1.0"}
   ]
 end
 ```
