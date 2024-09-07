@@ -16,8 +16,6 @@ defmodule HareMq do
 
   The `MyApp.MessageProducer` module is responsible for publishing messages to a message queue using the `HareMq.Publisher` behavior. This module provides an interface for sending messages with specified routing and exchange settings. It also supports deduplication based on specific keys.
 
-  ## Configuration
-
   The `MyApp.MessageProducer` module is configured with the following options:
 
   - **`routing_key`**: Specifies the routing key used to route messages to the appropriate queue. In this example, the routing key is set to `"routing_key"`.
@@ -66,8 +64,6 @@ defmodule HareMq do
 
   The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.Consumer` behavior. This module provides the functionality to receive and process messages with specific routing and exchange settings.
 
-  ## Configuration
-
   The `MyApp.MessageConsumer` module is configured with the following options:
 
   - **`queue_name`**: Specifies the name of the queue from which messages will be consumed. In this example, the queue name is set to `"queue_name"`.
@@ -94,8 +90,6 @@ defmodule HareMq do
   ### Dynamic Consumer
 
   The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.DynamicConsumer` behavior. This module provides the functionality to receive and process messages with dynamic scaling based on the specified number of worker processes.
-
-  ## Configuration
 
   The `MyApp.MessageConsumer` module is configured with the following options:
 
