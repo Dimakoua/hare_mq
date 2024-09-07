@@ -29,8 +29,6 @@ defmodule HareMq.Publisher do
         exchange: @opts[:exchange]
       ]
 
-      @unique @opts[:unique]
-
       def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, opts, name: __MODULE__)
       end
@@ -169,8 +167,9 @@ defmodule HareMq.Publisher do
           end
       """
       def publish_message(message) do
-        deduplication_ttl = Keyword.get(@unique, :period, nil)
-        deduplication_keys = Keyword.get(@unique, :keys, [])
+        unique = Keyword.get(@opts, :unique, [])
+        deduplication_ttl = Keyword.get(unique, :period, nil)
+        deduplication_keys = Keyword.get(unique, :keys, [])
 
         if(deduplication_ttl) do
           if(HareMq.DedupCache.is_dup?(message, deduplication_keys, deduplication_ttl)) do
