@@ -1,12 +1,37 @@
 defmodule HareMq.DedupCache do
+  @moduledoc """
+  A GenServer-based cache for message deduplication in a RabbitMQ system.
+
+  ## Overview
+
+  The `HareMq.DedupCache` module provides functionality to manage a cache of messages to prevent
+  the processing of duplicate messages. It uses a GenServer to store messages along with their
+  expiration timestamps and supports deduplication based on specific keys within a message.
+
+  ## Features
+
+  - **Deduplication:** Checks if a message is a duplicate based on its content and optional deduplication keys.
+  - **TTL Management:** Allows setting a time-to-live (TTL) for cached messages. Messages can be set to expire after a certain time or remain in the cache indefinitely.
+  - **Automatic Cache Clearing:** Periodically clears expired messages from the cache.
+
+  ## Functions
+
+  - `is_dup?/2`: Checks if a given message is a duplicate based on the cache.
+  - `add/3`: Adds a message to the cache with a specified TTL.
+
+  ## Usage
+
+  This module is intended for use in systems where message deduplication is required, such as in RabbitMQ consumers
+  where the same message might be delivered multiple times. The cache ensures that duplicate messages are identified
+  and not processed multiple times.
+  """
+
   use GenServer
 
-  # Client API
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  # GenServer callbacks
   def init(_opts) do
     send(self(), :clear_cache)
     {:ok, %{}}
