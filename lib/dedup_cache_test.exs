@@ -13,6 +13,59 @@ defmodule HareMq.DedupCacheTest do
     :ok
   end
 
+  test "add and check for duplicate based on all keys" do
+    message1 = %{id: 1, key: 1, value: 2}
+    message2 = %{id: 2, key: 1, value: 2}
+
+    HareMq.DedupCache.add(message1)
+    # Should return false because of different `id`
+    refute HareMq.DedupCache.is_dup?(message2, 1000)
+
+    # Add the message1 again to test the deduplication based on all keys
+    HareMq.DedupCache.add(message2)
+    # Should return true because of same `key` and `value`
+    assert HareMq.DedupCache.is_dup?(message2, 1000)
+  end
+
+  test "check for duplicate based on specific keys" do
+    message1 = %{id: 1, key: 1, value: 2}
+    message2 = %{id: 2, key: 1, value: 2}
+
+    HareMq.DedupCache.add(message1, [:key, :value])
+
+    # Check based on [key, value]
+    # Should return true
+    assert HareMq.DedupCache.is_dup?(message2, 1000, [:key, :value])
+
+    # Check based on [id]
+    # Should return false
+    refute HareMq.DedupCache.is_dup?(message2, 1000, [:id])
+  end
+
+  test "TTL functionality" do
+    message1 = %{id: 1, key: 1, value: 2}
+    message2 = %{id: 2, key: 1, value: 2}
+
+    HareMq.DedupCache.add(message1)
+
+    # Check if TTL works
+    # Sleep for longer than TTL
+    :timer.sleep(1500)
+    # Should return false after TTL expires
+    refute HareMq.DedupCache.is_dup?(message2, 1000, [:key, :value])
+  end
+
+  test "infinite TTL" do
+    message1 = %{id: 1, key: 1, value: 2}
+    message2 = %{id: 2, key: 1, value: 2}
+
+    HareMq.DedupCache.add(message1, [:key, :value])
+
+    # Check if infinite TTL works
+    # Should return true
+    assert HareMq.DedupCache.is_dup?(message2, :infinite, [:key, :value])
+  end
+
   test "should return false for a message that is not in the cache" do
     refute DedupCache.is_dup?("test_message", 1000)
   end

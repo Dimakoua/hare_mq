@@ -29,6 +29,8 @@ defmodule HareMq.Publisher do
         exchange: @opts[:exchange]
       ]
 
+      @unique @opts[:unique]
+
       def start_link(opts \\ []) do
         GenServer.start_link(__MODULE__, opts, name: __MODULE__)
       end
@@ -152,7 +154,13 @@ defmodule HareMq.Publisher do
       ## Examples
 
           defmodule MyPublisher do
-            use HareMq.Publisher, exchange: "my_exchange", routing_key: "my_routing_key"
+            use HareMq.Publisher,
+                exchange: "my_exchange",
+                routing_key: "my_routing_key"
+                unique: [
+                  period: :infinity,
+                  keys: [:project_id]
+                ]
 
             def publish() do
               message = %{key: "value"}
@@ -161,11 +169,12 @@ defmodule HareMq.Publisher do
           end
       """
       def publish_message(message) do
-        deduplication_ttl = Keyword.get(@opts, :deduplication_ttl, nil)
+        deduplication_ttl = Keyword.get(@unique, :period, nil)
+        deduplication_keys = Keyword.get(@unique, :keys, [])
 
         if(deduplication_ttl) do
-          if(HareMq.DedupCache.is_dup?(message, deduplication_ttl)) do
-            HareMq.DedupCache.add(message)
+          if(HareMq.DedupCache.is_dup?(message, deduplication_keys, deduplication_ttl)) do
+            HareMq.DedupCache.add(message, deduplication_keys)
             publish(message)
           else
             {:duplicate, :not_published}

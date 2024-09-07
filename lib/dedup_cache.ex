@@ -12,12 +12,12 @@ defmodule HareMq.DedupCache do
     {:ok, %{}}
   end
 
-  def is_dup?(message, deduplication_ttl) do
-    GenServer.call(__MODULE__, {:is_dup, message, deduplication_ttl})
+  def is_dup?(message, deduplication_ttl, deduplication_keys \\ []) do
+    GenServer.call(__MODULE__, {:is_dup, message, deduplication_ttl, deduplication_keys})
   end
 
-  def add(message) do
-    GenServer.cast(__MODULE__, {:add, message})
+  def add(message, deduplication_keys \\ []) do
+    GenServer.cast(__MODULE__, {:add, message, deduplication_keys})
   end
 
   def handle_info(:clear_cache, state) do
@@ -33,8 +33,8 @@ defmodule HareMq.DedupCache do
     {:noreply, new_state}
   end
 
-  def handle_cast({:add, message}, state) do
-    hash = generate_hash(message)
+  def handle_cast({:add, message, deduplication_keys}, state) do
+    hash = generate_hash(message, deduplication_keys)
 
     message =
       %{}
@@ -46,29 +46,43 @@ defmodule HareMq.DedupCache do
     {:noreply, new_state}
   end
 
-  def handle_call({:is_dup, message, deduplication_ttl}, _from, state) do
-    hash = generate_hash(message)
+  def handle_call({:is_dup, message, deduplication_ttl, deduplication_keys}, _from, state) do
+    hash = generate_hash(message, deduplication_keys)
 
     is_dup =
       case Map.get(state, hash) do
         nil ->
           false
 
-        _ when deduplication_ttl == :infinite ->
-          true
+        cached_message when deduplication_ttl == :infinite ->
+          Enum.all?(deduplication_keys, fn key -> message[key] === cached_message.message[key] end)
 
         cached_message ->
-          cached_message.inserted_at + deduplication_ttl > :os.system_time(:millisecond)
+          is_dub_by_keys =
+            Enum.all?(deduplication_keys, fn key ->
+              message[key] === cached_message.message[key]
+            end)
+
+          is_cached =
+            cached_message.inserted_at + deduplication_ttl > :os.system_time(:millisecond)
+
+          is_dub_by_keys && is_cached
       end
 
     {:reply, is_dup, state}
   end
 
-  defp generate_hash(message) when is_binary(message) do
+  defp generate_hash(message, _deduplication_keys) when is_binary(message) do
     :crypto.hash(:md5, message) |> Base.encode16()
   end
 
-  defp generate_hash(message) when is_map(message) do
+  defp generate_hash(message, deduplication_keys) when is_map(message) do
+    message =
+      case deduplication_keys do
+        [_ | _] -> Map.take(message, deduplication_keys)
+        _ -> message
+      end
+
     encoded_message = Jason.encode!(message)
 
     :crypto.hash(:md5, encoded_message) |> Base.encode16()
