@@ -19,11 +19,10 @@ defmodule HareMq.Worker.Consumer do
     GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {:consumers, name}})
   end
 
-  def init([config: config, consume: _] = opts) do
+  def init([config: _, consume: _] = opts) do
     Process.flag(:trap_exit, true)
 
     send(self(), {:connect, opts})
-    send(self(), {:schedule_auto_recover, opts})
     {:ok, %HareMq.Configuration{}}
   end
 
@@ -112,25 +111,6 @@ defmodule HareMq.Worker.Consumer do
         Process.send_after(self(), {:connect, opts}, @reconnect_interval)
         {:noreply, state}
     end
-  end
-
-  def handle_info({:schedule_auto_recover, [config: config, consume: _consume] = opts}, state) do
-    if(config[:auto_recover]) do
-      Process.send_after(self(), :recover, config[:auto_recover_time])
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_info(:recover, state) do
-    case Basic.recover(state) do
-      :ok ->
-        :ok
-      error ->
-        Logger.waring("[consumer_worker] Faile to recover channel! #{inspect(error)}")
-    end
-
-    {:noreply, state}
   end
 
   def handle_info({:basic_consume_ok, %{consumer_tag: _consumer_tag}}, state) do
