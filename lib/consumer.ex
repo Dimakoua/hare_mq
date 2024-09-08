@@ -25,7 +25,9 @@ defmodule HareMq.Consumer do
         routing_key: @opts[:routing_key] || @opts[:queue_name],
         exchange: @opts[:exchange],
         prefetch_count: @opts[:prefetch_count] || 1,
-        consumer_name: __MODULE__
+        consumer_name: __MODULE__,
+        auto_recover: @opts[:auto_recover] || false,
+        auto_recover_time: @opts[:auto_recover_time] || 30_000,
       ]
 
       def child_spec(opts) do
