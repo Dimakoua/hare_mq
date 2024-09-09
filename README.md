@@ -23,12 +23,26 @@ Install the required dependencies by adding them to your `mix.exs` file:
 ```elixir
 defp deps do
   [
-    {:hare_mq, "~> 1.0.0"}
+    {:hare_mq, "~> 1.1.0"}
   ]
 end
 ```
 
 ### Publisher
+
+The `MyApp.MessageProducer` module is responsible for publishing messages to a message queue using the `HareMq.Publisher` behavior. This module provides an interface for sending messages with specified routing and exchange settings. It also supports deduplication based on specific keys.
+
+The `MyApp.MessageProducer` module is configured with the following options:
+
+- **`routing_key`**: Specifies the routing key used to route messages to the appropriate queue. In this example, the routing key is set to `"routing_key"`.
+
+- **`exchange`**: Defines the exchange to which messages will be published. In this example, the exchange is set to `"exchange"`.
+
+- **`unique`**: This configuration option sets up deduplication rules:
+  - **`period`**: Defines the time period for deduplication in ms. In this example, it is set to `:infinity`, meaning that messages are considered unique indefinitely based on the specified keys.
+  - **`keys`**: A list of keys used to determine message uniqueness. In this example, deduplication is based on the `:project_id` key.
+
+
 ```elixir
 defmodule MyApp.MessageProducer do
   use HareMq.Publisher,
@@ -43,7 +57,37 @@ defmodule MyApp.MessageProducer do
 end
 ```
 
+```elixir
+defmodule MyApp.MessageProducer do
+  use HareMq.Publisher,
+    routing_key: "routing_key",
+    exchange: "exchange",
+    unique: [
+      period: :infinity,
+      keys: [:project_id]
+    ]
+
+  # Function to send a message to the message queue.
+  def send_message(message) do
+    # Publish the message using the HareMq.Publisher behavior.
+    publish_message(message)
+  end
+end
+```
+
+
 ### Consumer
+
+The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.Consumer` behavior. This module provides the functionality to receive and process messages with specific routing and exchange settings.
+
+The `MyApp.MessageConsumer` module is configured with the following options:
+
+- **`queue_name`**: Specifies the name of the queue from which messages will be consumed. In this example, the queue name is set to `"queue_name"`.
+
+- **`routing_key`**: Defines the routing key used to filter messages. In this example, the routing key is set to `"routing_key"`.
+
+- **`exchange`**: Defines the exchange from which messages will be consumed. In this example, the exchange is set to `"exchange"`.
+
 ```elixir
 defmodule MyApp.MessageConsumer do
   use HareMq.Consumer,
@@ -59,8 +103,21 @@ defmodule MyApp.MessageConsumer do
 end
 ```
 
-The consumer_count: 10 option indicates that it should run 10 worker processes.
 ### Dynamic Consumer
+
+The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.DynamicConsumer` behavior. This module provides the functionality to receive and process messages with dynamic scaling based on the specified number of worker processes.
+
+The `MyApp.MessageConsumer` module is configured with the following options:
+
+- **`queue_name`**: Specifies the name of the queue from which messages will be consumed. In this example, the queue name is set to `"queue_name"`.
+
+- **`routing_key`**: Defines the routing key used to filter messages. In this example, the routing key is set to `"routing_key"`.
+
+- **`exchange`**: Defines the exchange from which messages will be consumed. In this example, the exchange is set to `"exchange"`.
+
+- **`consumer_count`**: Indicates the number of worker processes that should be used to handle incoming messages. In this example, `consumer_count` is set to `10`, which means that 10 worker processes will be run to consume and process messages concurrently.
+
+
 ```elixir
 defmodule MyApp.MessageConsumer do
   use HareMq.DynamicConsumer,

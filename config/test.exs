@@ -1,5 +1,5 @@
 import Config
-config :logger, level: :warn
+config :logger, level: :warning
 
 config :hare_mq, :amqp,
   host: System.get_env("RABBITMQ_HOST", "localhost"),
