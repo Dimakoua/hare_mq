@@ -23,7 +23,9 @@ defmodule HareMq.DynamicConsumer do
         exchange: @opts[:exchange],
         prefetch_count: @opts[:prefetch_count] || 1,
         consumer_count: @opts[:consumer_count] || 1,
-        consumer_worker: HareMq.Worker.Consumer
+        auto_scaling: @opts[:auto_scaling] || nil,
+        consumer_worker: HareMq.Worker.Consumer,
+        module_name: __MODULE__
       ]
 
       def child_spec(opts) do
