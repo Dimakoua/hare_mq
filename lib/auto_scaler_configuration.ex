@@ -36,11 +36,13 @@ defmodule HareMq.AutoScalerConfiguration do
     :queue_name,
     :consumer_worker,
     :module_name,
+    :consume,
     :initial_consumer_count,
     :min_consumers,
     :max_consumers,
     :messages_per_consumer,
-    :check_interval
+    :check_interval,
+    :consumer_opts
   ]
 
   @default_check_interval Application.compile_env(:hare_mq, :auto_scaler)[:check_interval] ||
@@ -67,13 +69,17 @@ defmodule HareMq.AutoScalerConfiguration do
         consumer_worker: consumer_worker,
         module_name: module_name,
         consumer_count: initial_consumer_count,
-        auto_scaling: auto_scaling
+        consume: consume,
+        auto_scaling: auto_scaling,
+        consumer_opts: consumer_opts
       ) do
     %HareMq.AutoScalerConfiguration{
       queue_name: queue_name,
       consumer_worker: consumer_worker,
       module_name: module_name,
+      consume: consume,
       initial_consumer_count: initial_consumer_count,
+      consumer_opts: consumer_opts,
       min_consumers: auto_scaling[:min_consumers] || @default_min_consumers,
       max_consumers: auto_scaling[:max_consumers] || @default_max_consumers,
       messages_per_consumer:

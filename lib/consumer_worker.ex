@@ -72,6 +72,10 @@ defmodule HareMq.Worker.Consumer do
     {:reply, state, state}
   end
 
+  def handle_call(:get_config, _, state) do
+    {:reply, state, state}
+  end
+
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
     case HareMq.Connection.get_connection() do
       {:ok, conn} ->
@@ -171,8 +175,6 @@ defmodule HareMq.Worker.Consumer do
   defp close_chan(%HareMq.Configuration{channel: nil}), do: :ok
 
   defp close_chan(state) do
-    if Process.alive?(state.channel.pid) do
-      AMQP.Channel.close(state.channel)
-    end
+    AMQP.Channel.close(state.channel)
   end
 end
