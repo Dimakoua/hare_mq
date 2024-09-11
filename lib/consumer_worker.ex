@@ -76,6 +76,11 @@ defmodule HareMq.Worker.Consumer do
     {:reply, state, state}
   end
 
+  def handle_call(:cancel_consume, _, state) do
+    Basic.cancel(state.channel, state.consumer_tag)
+    {:reply, :ok, HareMq.Configuration.cancel_consume(state)}
+  end
+
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
     case HareMq.Connection.get_connection() do
       {:ok, conn} ->
@@ -99,9 +104,9 @@ defmodule HareMq.Worker.Consumer do
 
             declare_queues(queue_configuration)
 
-            {:ok, _consumer_tag} = Basic.consume(chan, config[:queue_name])
+            {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name])
 
-            {:noreply, queue_configuration}
+            {:noreply, HareMq.Configuration.set_consumer_tag(queue_configuration, consumer_tag)}
 
           _ ->
             Logger.error("[consumer_worker] Faile to open channel!")
@@ -130,6 +135,14 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info({:basic_cancel_ok, %{consumer_tag: _consumer_tag}}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info(
+        {:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered} = metadata},
+        %{state: :canceled} = state
+      ) do
+    Basic.nack(state.channel, tag, multiple: false, requeue: true)
     {:noreply, state}
   end
 

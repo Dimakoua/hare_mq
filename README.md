@@ -40,7 +40,8 @@ The `MyApp.MessageProducer` module is configured with the following options:
 
 - **`unique`**: This configuration option sets up deduplication rules:
   - **`period`**: Defines the time period for deduplication in ms. In this example, it is set to `:infinity`, meaning that messages are considered unique indefinitely based on the specified keys.
-  - **`keys`**: A list of keys used to determine message uniqueness. In this example, deduplication is based on the `:project_id` key.
+  - **`keys`**: A list of keys used to determine message uniqueness. If the message is a string, deduplication is managed by default behavior and you do not need to specify `keys`. If provided, deduplication is based on the specified keys. In the example, deduplication is based on the `:project_id` key.
+
 
 
 ```elixir
@@ -117,6 +118,11 @@ The `MyApp.MessageConsumer` module is configured with the following options:
 
 - **`consumer_count`**: Indicates the number of worker processes that should be used to handle incoming messages. In this example, `consumer_count` is set to `10`, which means that 10 worker processes will be run to consume and process messages concurrently.
 
+- **`auto_scaling`**: Allows configuration for dynamic scaling of consumers:
+  - **`min_consumers`**: The minimum number of consumers to maintain.
+  - **`max_consumers`**: The maximum number of consumers to maintain.
+  - **`messages_per_consumer`**: The number of messages each consumer should handle before scaling adjustments are considered.
+  - **`check_interval`**: The interval (in milliseconds) at which to check the queue length and adjust the number of consumers accordingly.
 
 ```elixir
 defmodule MyApp.MessageConsumer do
@@ -125,6 +131,29 @@ defmodule MyApp.MessageConsumer do
     routing_key: "routing_key",
     exchange: "exchange",
     consumer_count: 10
+
+  # Function to process a received message.
+  def consume(message) do
+    # Log the beginning of the message processing.
+    IO.puts("Processing message: #{inspect(message)}")
+  end
+end
+```
+
+### MessageConsumer with auto scaling
+```elixir
+defmodule MyApp.MessageConsumer do
+  use HareMq.DynamicConsumer,
+    queue_name: "queue_name",
+    routing_key: "routing_key",
+    exchange: "exchange",
+    consumer_count: 10,
+    auto_scaling: [
+      min_consumers: 1,
+      max_consumers: 20,
+      messages_per_consumer: 100,
+      check_interval: 5_000
+    ]
 
   # Function to process a received message.
   def consume(message) do

@@ -1,6 +1,7 @@
 defmodule HareMq.DynamicSupervisor do
   use DynamicSupervisor
   alias HareMq.AutoScalerConfiguration
+  @timeout 70_000
 
   def start_link([config: _, consume: _] = opts) do
     DynamicSupervisor.start_link(__MODULE__, opts, name: __MODULE__)
@@ -63,7 +64,9 @@ defmodule HareMq.DynamicSupervisor do
   end
 
   @doc """
-  Removes a consumer process by its name.
+  This function looks up the consumer by name in the `:consumers` registry,
+  sends a cancellation message to the consumer to allow it to stop processing,
+  and then terminates the child process.
 
   ## Examples
 
@@ -72,18 +75,18 @@ defmodule HareMq.DynamicSupervisor do
   """
   def remove_consumer(name) do
     case Registry.lookup(:consumers, name) do
-      [{pid, nil}] -> DynamicSupervisor.terminate_child(__MODULE__, pid)
-      _ -> :ok
+      [{pid, nil}] ->
+        # Send a cancellation message to allow the consumer to finish processing gracefully
+        GenServer.call(pid, :cancel_consume, @timeout)
+        DynamicSupervisor.terminate_child(__MODULE__, pid)
+
+      _ ->
+        :ok
     end
   end
 
   @doc """
   Returns a list of all consumers managed by this dynamic supervisor.
-
-  ## Examples
-
-      iex> HareMq.DynamicSupervisor.list_consumers()
-      ["MyApp.Consumer.W1", "MyApp.Consumer.W2", "MyApp.Consumer.W3"]
   """
   def list_consumers do
     DynamicSupervisor.which_children(__MODULE__)
