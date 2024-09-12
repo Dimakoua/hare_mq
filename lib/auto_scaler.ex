@@ -71,7 +71,7 @@ defmodule HareMq.AutoScaler do
     %{state | current_consumer_count: target_consumer_count}
   end
 
-  defp calculate_target_consumer_count(queue_length, config) do
+  def calculate_target_consumer_count(queue_length, config) do
     # one consumer per N messages in the queue.
     div(queue_length + config.messages_per_consumer - 1, config.messages_per_consumer)
     |> max(config.min_consumers)

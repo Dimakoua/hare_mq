@@ -139,7 +139,7 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info(
-        {:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered} = metadata},
+        {:basic_deliver, _payload, %{delivery_tag: tag, redelivered: _redelivered} = _metadata},
         %{state: :canceled} = state
       ) do
     Basic.nack(state.channel, tag, multiple: false, requeue: true)
