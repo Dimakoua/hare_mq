@@ -15,7 +15,6 @@ defmodule HareMq.AutoScalerTest do
   }
 
   setup do
-    start_supervised!({Registry, keys: :unique, name: :consumers})
     {:ok, config: @default_config}
   end
 
@@ -34,7 +33,9 @@ defmodule HareMq.AutoScalerTest do
     assert_receive :check_queue, config.check_interval + 100
   end
 
-  test "calculate_target_consumer_count calculates the correct number of consumers", %{config: config} do
+  test "calculate_target_consumer_count calculates the correct number of consumers", %{
+    config: config
+  } do
     assert AutoScaler.calculate_target_consumer_count(0, config) == 1
     assert AutoScaler.calculate_target_consumer_count(5, config) == 1
     assert AutoScaler.calculate_target_consumer_count(10, config) == 1

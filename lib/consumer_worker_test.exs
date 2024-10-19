@@ -36,8 +36,6 @@ defmodule HareMq.Worker.ConsumerTest do
 
   setup do
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
-    # Start the Registry for tests
-    start_supervised!({Registry, keys: :unique, name: :consumers})
     {:ok, _pid} = Connection.start_link(nil)
 
     :ok

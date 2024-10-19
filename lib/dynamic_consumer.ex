@@ -48,8 +48,8 @@ defmodule HareMq.DynamicConsumer do
         if consumer_number == @config[:consumer_count] do
           {:error, :process_not_alive}
         else
-          case Registry.lookup(:consumers, "#{@config[:consumer_worker]}.W#{consumer_number}") do
-            [{pid, nil}] -> HareMq.Worker.Consumer.republish_dead_messages(pid, count)
+          case :global.whereis_name("#{@config[:consumer_worker]}.W#{consumer_number}") do
+            pid when is_pid(pid) -> HareMq.Worker.Consumer.republish_dead_messages(pid, count)
             _ -> traverse_consumers(count, consumer_number + 1)
           end
         end

@@ -43,8 +43,8 @@ defmodule HareMq.Consumer do
       end
 
       def republish_dead_messages(number) do
-        case Registry.lookup(:consumers, @config[:consumer_name]) do
-          [{pid, nil}] -> HareMq.Worker.Consumer.republish_dead_messages(pid, number)
+        case :global.whereis_name(@config[:consumer_name]) do
+          pid when is_pid(pid) -> HareMq.Worker.Consumer.republish_dead_messages(pid, number)
           _ -> {:error, :process_not_alive}
         end
       end

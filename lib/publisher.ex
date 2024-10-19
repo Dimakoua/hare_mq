@@ -30,7 +30,8 @@ defmodule HareMq.Publisher do
       ]
 
       def start_link(opts \\ []) do
-        GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+        GenServer.start_link(__MODULE__, opts, name: {:global, __MODULE__})
+        |> HareMq.CodeFlow.successful_start()
       end
 
       def init(_) do
@@ -40,7 +41,7 @@ defmodule HareMq.Publisher do
       end
 
       def get_channel do
-        case GenServer.call(__MODULE__, :get_channel) do
+        case GenServer.call({:global, __MODULE__}, :get_channel) do
           nil -> {:error, :not_connected}
           %AMQP.Channel{} = conn -> {:ok, conn}
         end
