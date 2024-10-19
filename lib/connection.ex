@@ -12,7 +12,8 @@ defmodule HareMq.Connection do
                         10_000
 
   def start_link(_opts) do
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+    GenServer.start_link(__MODULE__, nil, name: {:global, __MODULE__})
+    |> HareMq.CodeFlow.successful_start()
   end
 
   def init(_) do
@@ -35,7 +36,7 @@ defmodule HareMq.Connection do
       end
   """
   def get_connection do
-    case GenServer.whereis(__MODULE__) do
+    case GenServer.whereis({:global, __MODULE__}) do
       nil ->
         {:error, :not_connected}
 
@@ -62,7 +63,7 @@ defmodule HareMq.Connection do
       end
   """
   def close_connection do
-    case GenServer.call(__MODULE__, :close_connection) do
+    case GenServer.call({:global, __MODULE__}, :close_connection) do
       nil -> {:error, :not_connected}
       %AMQP.Connection{} = conn -> {:ok, conn}
     end

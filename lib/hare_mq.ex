@@ -190,8 +190,7 @@ defmodule HareMq do
   def start(_type, _args) do
     children = [
       HareMq.Connection,
-      HareMq.DedupCache,
-      {Registry, keys: :unique, name: :consumers}
+      HareMq.DedupCache
     ]
 
     opts = [strategy: :one_for_one, name: HareMq.Supervisor]

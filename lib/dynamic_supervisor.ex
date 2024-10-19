@@ -74,8 +74,8 @@ defmodule HareMq.DynamicSupervisor do
       :ok
   """
   def remove_consumer(name) do
-    case Registry.lookup(:consumers, name) do
-      [{pid, nil}] ->
+    case :global.whereis_name(name) do
+      pid when is_pid(pid) ->
         # Send a cancellation message to allow the consumer to finish processing gracefully
         GenServer.call(pid, :cancel_consume, @timeout)
         DynamicSupervisor.terminate_child(__MODULE__, pid)

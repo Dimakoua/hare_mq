@@ -9,7 +9,7 @@ defmodule HareMq.AutoScaler do
   @timeout 30_000
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: {:global, __MODULE__})
   end
 
   @impl true
@@ -22,6 +22,7 @@ defmodule HareMq.AutoScaler do
   def handle_info(:check_queue, state) do
     queue_length = get_queue_length(state.config)
     state = adjust_consumers(queue_length, state)
+
     schedule_check(state.config.check_interval)
     {:noreply, state}
   end
@@ -31,8 +32,8 @@ defmodule HareMq.AutoScaler do
   end
 
   defp get_queue_length(%AutoScalerConfiguration{module_name: module_name} = _config) do
-    case Registry.lookup(:consumers, "#{module_name}.W1") do
-      [{pid, nil}] ->
+    case :global.whereis_name("#{module_name}.W1") do
+      pid when is_pid(pid) ->
         queue_config = GenServer.call(pid, :get_config, @timeout)
         AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
 

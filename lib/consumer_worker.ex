@@ -9,14 +9,16 @@ defmodule HareMq.Worker.Consumer do
                       ] || 10_000
 
   def start_link([config: config, consume: _] = opts) do
-    GenServer.start_link(__MODULE__, opts,
-      name: {:via, Registry, {:consumers, config[:consumer_name]}}
-    )
+    HareMq.GlobalNodeManager.wait_for_all_nodes_ready(config[:consumer_name])
+
+    GenServer.start_link(__MODULE__, opts, name: {:global, config[:consumer_name]})
+    |> HareMq.CodeFlow.successful_start()
   end
 
   # start from Dynamic Supervisor
   def start_link({name, opts}) do
-    GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {:consumers, name}})
+    GenServer.start_link(__MODULE__, opts, name: {:global, name})
+    |> HareMq.CodeFlow.successful_start()
   end
 
   def init([config: _, consume: _] = opts) do
