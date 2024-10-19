@@ -4,7 +4,7 @@ defmodule HareMq.MixProject do
   def project do
     [
       app: :hare_mq,
-      version: "1.2.0",
+      version: "1.3.0",
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
