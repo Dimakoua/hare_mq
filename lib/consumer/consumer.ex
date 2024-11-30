@@ -24,7 +24,10 @@ defmodule HareMq.Consumer do
         queue_name: @opts[:queue_name],
         routing_key: @opts[:routing_key] || @opts[:queue_name],
         exchange: @opts[:exchange],
+        retry_limit: @opts[:retry_limit],
+        delay_in_ms: @opts[:delay_in_ms],
         prefetch_count: @opts[:prefetch_count] || 1,
+        delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
         consumer_name: __MODULE__
       ]
 

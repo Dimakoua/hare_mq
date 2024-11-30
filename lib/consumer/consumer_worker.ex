@@ -99,7 +99,10 @@ defmodule HareMq.Worker.Consumer do
                 consume_fn: consume,
                 name: config[:queue_name],
                 exchange: config[:exchange],
-                routing_key: config[:routing_key]
+                routing_key: config[:routing_key],
+                delay_in_ms: config[:delay_in_ms],
+                retry_limit: config[:retry_limit],
+                delay_cascade_in_ms: config[:delay_cascade_in_ms]
               )
 
             Basic.qos(chan, prefetch_count: config[:prefetch_count])

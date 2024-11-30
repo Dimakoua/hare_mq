@@ -47,14 +47,7 @@ defmodule HareMq.RetryPublisher do
 
     if(retry_count < configuration.retry_limit) do
       Logger.debug("Sending message to a delay queue")
-
-      AMQP.Basic.publish(
-        configuration.channel,
-        "",
-        configuration.delay_queue_name,
-        payload,
-        retry_options
-      )
+      republish_to_delay_queue(payload, configuration, retry_count)
     else
       Logger.debug("Sending message to a dead messages queue")
 
@@ -66,6 +59,43 @@ defmodule HareMq.RetryPublisher do
         retry_options
       )
     end
+  end
+
+  defp republish_to_delay_queue(
+         payload,
+         %Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = configuration,
+         retry_count
+       )
+       when is_list(delay_cascade_in_ms) do
+    retry_options = [
+      persistent: true,
+      headers: [retry_count: retry_count + 1]
+    ]
+
+    delay_in_ms = Enum.at(delay_cascade_in_ms, retry_count - 1)
+
+    AMQP.Basic.publish(
+      configuration.channel,
+      "",
+      "#{configuration.base_delay_queue_name}.#{delay_in_ms}",
+      payload,
+      retry_options
+    )
+  end
+
+  defp republish_to_delay_queue(payload, %Configuration{} = configuration, retry_count) do
+    retry_options = [
+      persistent: true,
+      headers: [retry_count: retry_count + 1]
+    ]
+
+    AMQP.Basic.publish(
+      configuration.channel,
+      "",
+      configuration.delay_queue_name,
+      payload,
+      retry_options
+    )
   end
 
   @doc """

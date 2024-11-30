@@ -3,9 +3,11 @@ defmodule HareMq.GlobalNodeManager do
 
   # Function to wait until all nodes are ready
   def wait_for_all_nodes_ready(name) do
-    nodes = Node.list() ++ [node()]  # Include self
+    # Include self
+    nodes = Node.list() ++ [node()]
 
-    wait_until_ready(nodes, name, 30_000) # 30 seconds timeout
+    # 30 seconds timeout
+    wait_until_ready(nodes, name, 30_000)
   end
 
   defp wait_until_ready(nodes, name, remaining_time) when remaining_time > 0 do
@@ -13,15 +15,17 @@ defmodule HareMq.GlobalNodeManager do
       length(Node.list()) == 0 ->
         Logger.info("All nodes are ready for #{name}.")
         :ok
+
       length(Node.list()) > 0 and :global.whereis_name(name) != :undefined ->
         Logger.info("All nodes are ready for #{name}.")
         :ok
+
       true ->
         Logger.info("Waiting for all nodes to be ready for #{name}...")
-        Process.sleep(1000)  # Sleep for 1 second
+        # Sleep for 1 second
+        Process.sleep(1000)
         wait_until_ready(nodes, name, remaining_time - 1000)
     end
-
   end
 
   defp wait_until_ready(_, _, _) do

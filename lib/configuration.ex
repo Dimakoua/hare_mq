@@ -56,6 +56,7 @@ defmodule HareMq.Configuration do
     :consume_fn,
     :queue_name,
     :delay_queue_name,
+    :delay_cascade_in_ms,
     :dead_queue_name,
     :exchange,
     :routing_key,
@@ -96,19 +97,24 @@ defmodule HareMq.Configuration do
         consume_fn: consume_fn,
         name: name,
         exchange: exchange,
-        routing_key: routing_key
+        routing_key: routing_key,
+        delay_in_ms: delay_in_ms,
+        retry_limit: retry_limit,
+        delay_cascade_in_ms: delay_cascade_in_ms
       ) do
     %Configuration{
       channel: channel,
       consume_fn: consume_fn,
       queue_name: name,
+      base_delay_queue_name: "delay",
       delay_queue_name: "#{name}.delay",
       dead_queue_name: "#{name}.dead",
       exchange: exchange,
       routing_key: routing_key,
-      delay_in_ms: @delay_in_ms,
+      delay_in_ms: delay_in_ms || @delay_in_ms,
+      delay_cascade_in_ms: delay_cascade_in_ms || [],
       message_ttl: @message_ttl,
-      retry_limit: @retry_limit,
+      retry_limit: retry_limit || @retry_limit,
       durable: true,
       consumer_tag: nil,
       state: :running
