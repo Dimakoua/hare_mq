@@ -2,14 +2,11 @@ defmodule HareMq.Configuration do
   @moduledoc """
   Configuration module for HareMq.
 
-  This module provides functions and structures for configuring various components of HareMq,
-  such as queues, exchanges, and consumers. It allows you to specify parameters related to
-  message handling, queue management, and connection settings.
+  This module provides functions and structures for configuring various components of HareMq, such as queues, exchanges, and consumers. It allows you to specify parameters related to message handling, queue management, and connection settings.
 
   ## Structure
 
-  The primary structure used in this module is `Configuration`, which holds the configuration
-  details for a queue.
+  The primary structure used in this module is `Configuration`, which holds the configuration details for a queue.
 
   ## Fields
 
@@ -18,33 +15,47 @@ defmodule HareMq.Configuration do
   - `:queue_name` - The name of the queue.
   - `:delay_queue_name` - The name of the delay queue.
   - `:dead_queue_name` - The name of the dead letter queue.
+  - `:delay_cascade_in_ms` - A list of delays in milliseconds for cascading retries.
   - `:exchange` - The AMQP exchange.
   - `:routing_key` - The routing key for messages.
-  - `:delay_in_ms` - The delay in milliseconds before a message is retried.
+  - `:delay_in_ms` - The default delay in milliseconds before a message is retried.
   - `:message_ttl` - The time-to-live for a message in milliseconds.
   - `:retry_limit` - The number of retry attempts before a message is sent to the dead letter queue.
   - `:durable` - Whether the queue is durable or not.
   - `:consumer_tag` - An optional tag to identify the consumer.
   - `:state` - The current state of the configuration. Default is `:running`.
 
+  ## Default Values
+
+  The following defaults are set using application configuration or fallback values:
+
+  - `@delay_in_ms`: `10_000`
+  - `@retry_limit`: `15`
+  - `@message_ttl`: `31_449_600`
+
   ## Examples
 
-      config = %Configuration{
-        channel: my_channel,
-        consume_fn: &my_consume_fn/1,
-        queue_name: "my_queue",
-        delay_queue_name: "my_queue.delay",
-        dead_queue_name: "my_queue.dead",
-        exchange: "my_exchange",
-        routing_key: "my_routing_key",
-        delay_in_ms: 10_000,
-        message_ttl: 31_449_600,
-        retry_limit: 15,
-        durable: true,
-        consumer_tag: nil,
-        state: :running
-      }
+  Creating a queue configuration:
+
+  ```elixir
+  config = %Configuration{
+    channel: my_channel,
+    consume_fn: &my_consume_fn/1,
+    queue_name: "my_queue",
+    delay_queue_name: "my_queue.delay",
+    dead_queue_name: "my_queue.dead",
+    exchange: "my_exchange",
+    routing_key: "my_routing_key",
+    delay_in_ms: 10_000,
+    delay_cascade_in_ms: [1000, 5000, 10000],
+    message_ttl: 31_449_600,
+    retry_limit: 15,
+    durable: true,
+    consumer_tag: nil,
+    state: :running
+  }
   """
+
   alias __MODULE__
 
   @delay_in_ms Application.compile_env(:hare_mq, :configuration)[:delay_in_ms] || 10_000
@@ -71,26 +82,37 @@ defmodule HareMq.Configuration do
   @doc """
   Creates a configuration for a queue with the specified parameters.
 
-  This function generates a `Configuration` struct and constructs names for delay and dead letter queues
-  based on the provided queue name.
+  This function generates a `Configuration` struct, constructing names for delay and dead letter queues
+  based on the provided queue name. It also allows setting advanced options like cascading delays for retries.
 
   ## Parameters
 
-    - `channel`: The AMQP channel to use.
-    - `consume_fn`: The function to handle messages from the queue.
-    - `name`: The name of the queue.
-    - `exchange`: The AMQP exchange.
-    - `routing_key`: The routing key for messages.
+  - `channel`: The AMQP channel to use for the queue.
+  - `consume_fn`: The function to handle messages from the queue.
+  - `name`: The name of the queue.
+  - `exchange`: The AMQP exchange to bind the queue to.
+  - `routing_key`: The routing key to use for message routing.
+  - `delay_in_ms` (optional): The delay in milliseconds before a message is retried. Defaults to `@delay_in_ms`.
+  - `retry_limit` (optional): The number of retry attempts before messages are routed to the dead letter queue. Defaults to `@retry_limit`.
+  - `delay_cascade_in_ms` (optional): A list of delays in milliseconds for cascading retries. Defaults to an empty list.
+
+  ## Returns
+
+  A `Configuration` struct with the specified and default parameters applied.
 
   ## Examples
 
-      config = get_queue_configuration(
-        channel: my_channel,
-        consume_fn: my_consume_fn,
-        name: "my_queue",
-        exchange: "my_exchange",
-        routing_key: "my_routing_key"
-      )
+  Creating a basic queue configuration:
+
+  ```elixir
+  config = get_queue_configuration(
+    channel: my_channel,
+    consume_fn: my_consume_fn,
+    name: "my_queue",
+    exchange: "my_exchange",
+    routing_key: "my_routing_key"
+  )
+
   """
   def get_queue_configuration(
         channel: channel,
@@ -106,7 +128,6 @@ defmodule HareMq.Configuration do
       channel: channel,
       consume_fn: consume_fn,
       queue_name: name,
-      base_delay_queue_name: "delay",
       delay_queue_name: "#{name}.delay",
       dead_queue_name: "#{name}.dead",
       exchange: exchange,
