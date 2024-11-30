@@ -59,17 +59,20 @@ defmodule HareMq.Queue do
     delay_cascade_in_ms
     |> Enum.sort()
     |> Enum.each(fn delay_in_ms when is_integer(delay_in_ms) ->
-      AMQP.Queue.declare(
-        config.channel,
-        "#{config.base_delay_queue_name}.#{delay_in_ms}",
-        durable: config.durable,
-        arguments: [
-          {"x-dead-letter-exchange", :longstr, config.queue_name},
-          {"x-dead-letter-routing-key", :longstr, config.routing_key},
-          {"x-message-ttl", :long, config.delay_in_ms}
-        ]
-      )
+      {:ok, _} =
+        AMQP.Queue.declare(
+          config.channel,
+          "#{config.delay_queue_name}.#{delay_in_ms}",
+          durable: config.durable,
+          arguments: [
+            {"x-dead-letter-exchange", :longstr, config.queue_name},
+            {"x-dead-letter-routing-key", :longstr, config.routing_key},
+            {"x-message-ttl", :long, delay_in_ms}
+          ]
+        )
     end)
+
+    {:ok, :created}
   end
 
   def declare_delay_queue(%Configuration{} = config) do
