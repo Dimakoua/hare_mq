@@ -24,6 +24,7 @@ defmodule HareMq.DynamicConsumer do
         prefetch_count: @opts[:prefetch_count] || 1,
         consumer_count: @opts[:consumer_count] || 1,
         auto_scaling: @opts[:auto_scaling] || nil,
+        delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
         consumer_worker: HareMq.Worker.Consumer,
         module_name: __MODULE__
       ]
