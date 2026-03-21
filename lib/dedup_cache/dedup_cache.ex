@@ -43,7 +43,7 @@ defmodule HareMq.DedupCache do
   end
 
   def add(message, deduplication_ttl, deduplication_keys \\ []) do
-    GenServer.cast({:global, __MODULE__}, {:add, message, deduplication_ttl, deduplication_keys})
+    GenServer.call({:global, __MODULE__}, {:add, message, deduplication_ttl, deduplication_keys})
   end
 
   def handle_info(:clear_cache, state) do
@@ -59,7 +59,7 @@ defmodule HareMq.DedupCache do
     {:noreply, new_state}
   end
 
-  def handle_cast({:add, message, deduplication_ttl, deduplication_keys}, state) do
+  def handle_call({:add, message, deduplication_ttl, deduplication_keys}, _from, state) do
     hash = generate_hash(message, deduplication_keys)
 
     deduplication_ttl =
@@ -69,14 +69,14 @@ defmodule HareMq.DedupCache do
         _ -> deduplication_ttl
       end
 
-    message =
+    entry =
       %{}
       |> Map.put(:message, message)
       |> Map.put(:expired_at, :os.system_time(:millisecond) + deduplication_ttl)
 
-    new_state = Map.put(state, hash, message)
+    new_state = Map.put(state, hash, entry)
 
-    {:noreply, new_state}
+    {:reply, :ok, new_state}
   end
 
   def handle_call({:is_dup, message, deduplication_keys}, _from, state) do
