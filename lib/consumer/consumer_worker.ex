@@ -212,29 +212,31 @@ defmodule HareMq.Worker.Consumer do
         {:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered} = metadata},
         state
       ) do
-    try do
-      message =
-        case Jason.decode(payload) do
-          {:ok, encoded} -> encoded
-          {:error, _} -> payload
-        end
-
-      result =
-        :telemetry.span(
-          [:hare_mq, :consumer, :message],
-          %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
-          fn ->
-            r = state.consume_fn.(message)
-            {r, %{result: consume_result_status(r), queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key}}
+    Task.start(fn ->
+      try do
+        message =
+          case Jason.decode(payload) do
+            {:ok, encoded} -> encoded
+            {:error, _} -> payload
           end
-        )
 
-      process_result(result, payload, state, tag, metadata)
-    rescue
-      reason ->
-        Logger.error(inspect(reason))
-        retry(payload, state, tag, metadata)
-    end
+        result =
+          :telemetry.span(
+            [:hare_mq, :consumer, :message],
+            %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
+            fn ->
+              r = state.consume_fn.(message)
+              {r, %{result: consume_result_status(r), queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key}}
+            end
+          )
+
+        process_result(result, payload, state, tag, metadata)
+      rescue
+        reason ->
+          Logger.error(inspect(reason))
+          retry(payload, state, tag, metadata)
+      end
+    end)
 
     {:noreply, state}
   end
