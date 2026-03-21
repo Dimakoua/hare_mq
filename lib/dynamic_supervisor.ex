@@ -3,8 +3,14 @@ defmodule HareMq.DynamicSupervisor do
   alias HareMq.AutoScalerConfiguration
   @timeout 70_000
 
-  def start_link([config: _, consume: _] = opts) do
-    DynamicSupervisor.start_link(__MODULE__, opts, name: __MODULE__)
+  @doc """
+  Returns the registered name for the DynamicSupervisor that manages `module_name`.
+  """
+  def supervisor_name(module_name), do: :"#{module_name}.Supervisor"
+
+  def start_link([config: config, consume: _] = opts) do
+    name = supervisor_name(config[:module_name])
+    DynamicSupervisor.start_link(__MODULE__, opts, name: name)
   end
 
   @impl true
@@ -30,8 +36,10 @@ defmodule HareMq.DynamicSupervisor do
   end
 
   defp start_consumers([config: config, consume: _] = opts) do
+    supervisor = supervisor_name(config[:module_name])
+
     Enum.each(1..config[:consumer_count], fn number ->
-      start_child(
+      start_child(supervisor,
         worker: config[:consumer_worker],
         name: "#{config[:module_name]}.W#{number}",
         opts: opts
@@ -47,8 +55,8 @@ defmodule HareMq.DynamicSupervisor do
       iex> HareMq.DynamicSupervisor.start_child(worker: MyApp.Consumer, name: :consumer1, opts: [config: %{}, consume: MyApp.Consumer])
       {:ok, #PID<0.124.0>}
   """
-  def start_child(worker: worker, name: name, opts: opts) do
-    DynamicSupervisor.start_child(__MODULE__, {worker, {name, opts}})
+  def start_child(supervisor, worker: worker, name: name, opts: opts) do
+    DynamicSupervisor.start_child(supervisor, {worker, {name, opts}})
   end
 
   @doc """
@@ -59,8 +67,8 @@ defmodule HareMq.DynamicSupervisor do
       iex> HareMq.DynamicSupervisor.add_consumer(worker: MyApp.Consumer, name: "MyApp.Consumer.W4", opts: [config: %{}, consume: MyApp.Consumer])
       {:ok, #PID<0.125.0>}
   """
-  def add_consumer(worker: worker, name: name, opts: opts) do
-    start_child(worker: worker, name: name, opts: opts)
+  def add_consumer(supervisor, worker: worker, name: name, opts: opts) do
+    start_child(supervisor, worker: worker, name: name, opts: opts)
   end
 
   @doc """
@@ -73,12 +81,12 @@ defmodule HareMq.DynamicSupervisor do
       iex> HareMq.DynamicSupervisor.remove_consumer("MyApp.Consumer.W4")
       :ok
   """
-  def remove_consumer(name) do
+  def remove_consumer(supervisor, name) do
     case :global.whereis_name(name) do
       pid when is_pid(pid) ->
         # Send a cancellation message to allow the consumer to finish processing gracefully
         GenServer.call(pid, :cancel_consume, @timeout)
-        DynamicSupervisor.terminate_child(__MODULE__, pid)
+        DynamicSupervisor.terminate_child(supervisor, pid)
 
       _ ->
         :ok
@@ -88,8 +96,8 @@ defmodule HareMq.DynamicSupervisor do
   @doc """
   Returns a list of all consumers managed by this dynamic supervisor.
   """
-  def list_consumers do
-    DynamicSupervisor.which_children(__MODULE__)
+  def list_consumers(supervisor) do
+    DynamicSupervisor.which_children(supervisor)
   end
 
   @doc """
@@ -97,6 +105,8 @@ defmodule HareMq.DynamicSupervisor do
   """
   def start_auto_scaler([config: config, consume: consume] = opts) do
     if config[:auto_scaling] do
+      supervisor = supervisor_name(config[:module_name])
+
       configuration =
         AutoScalerConfiguration.get_auto_scaler_configuration(
           queue_name: config[:queue_name],
@@ -108,7 +118,7 @@ defmodule HareMq.DynamicSupervisor do
           consumer_opts: opts
         )
 
-      DynamicSupervisor.start_child(__MODULE__, {HareMq.AutoScaler, configuration})
+      DynamicSupervisor.start_child(supervisor, {HareMq.AutoScaler, configuration})
     else
       :ok
     end
