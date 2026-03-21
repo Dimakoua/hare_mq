@@ -53,23 +53,29 @@ defmodule HareMq.Queue do
   `queue_name.delay` queue is created using `delay_in_ms`.
   """
   def declare_delay_queue(%Configuration{delay_cascade_in_ms: [_ | _] = delay_cascade_in_ms} = config) do
-    delay_cascade_in_ms
-    |> Enum.sort()
-    |> Enum.each(fn delay_in_ms when is_integer(delay_in_ms) ->
-      {:ok, _} =
-        AMQP.Queue.declare(
-          config.channel,
-          "#{config.delay_queue_name}.#{delay_in_ms}",
-          durable: config.durable,
-          arguments: [
-            {"x-dead-letter-exchange", :longstr, config.queue_name},
-            {"x-dead-letter-routing-key", :longstr, config.routing_key},
-            {"x-message-ttl", :long, delay_in_ms}
-          ]
-        )
-    end)
+    result =
+      delay_cascade_in_ms
+      |> Enum.sort()
+      |> Enum.reduce_while(:ok, fn delay_in_ms, _acc when is_integer(delay_in_ms) ->
+        case AMQP.Queue.declare(
+               config.channel,
+               "#{config.delay_queue_name}.#{delay_in_ms}",
+               durable: config.durable,
+               arguments: [
+                 {"x-dead-letter-exchange", :longstr, config.queue_name},
+                 {"x-dead-letter-routing-key", :longstr, config.routing_key},
+                 {"x-message-ttl", :long, delay_in_ms}
+               ]
+             ) do
+          {:ok, _} -> {:cont, :ok}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
 
-    {:ok, :created}
+    case result do
+      :ok -> {:ok, :created}
+      error -> error
+    end
   end
 
   def declare_delay_queue(%Configuration{} = config) do
@@ -87,6 +93,13 @@ defmodule HareMq.Queue do
 
   @doc """
   Declares the dead-letter queue (`queue_name.dead`) with `x-message-ttl`.
+
+  This is an intentionally **terminal** queue — it has no `x-dead-letter-exchange`
+  configured. Messages that exceed their TTL here are dropped by the broker rather
+  than routed elsewhere. This prevents infinite retry loops and makes the dead
+  queue a true end-of-line store for unprocessable messages.
+
+  To inspect or reprocess dead messages use `HareMq.RetryPublisher.republish_dead_messages/2`.
   """
   def declare_dead_queue(%Configuration{} = config) do
     AMQP.Queue.declare(

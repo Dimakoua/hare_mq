@@ -29,7 +29,7 @@ defmodule HareMq.Publisher do
   - `:ok` — message accepted by the broker.
   - `{:error, :not_connected}` — no active channel yet.
   - `{:error, {:encoding_failed, reason}}` — map could not be JSON-encoded.
-  - `{:duplicate, :not_published}` — deduplication prevented publishing.
+  - `{:ok, :duplicate}` — deduplication prevented publishing (message already seen).
   """
 
   defmacro __using__(options) do
@@ -261,7 +261,7 @@ defmodule HareMq.Publisher do
             HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys, @dedup_cache_name)
             publish(message)
           else
-            {:duplicate, :not_published}
+            {:ok, :duplicate}
           end
         else
           publish(message)
