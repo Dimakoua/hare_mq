@@ -46,7 +46,7 @@ defmodule HareMq.DynamicConsumer do
       def republish_dead_messages(count), do: traverse_consumers(count, 1)
 
       defp traverse_consumers(count, consumer_number) do
-        if consumer_number == @config[:consumer_count] do
+        if consumer_number > @config[:consumer_count] do
           {:error, :process_not_alive}
         else
           case :global.whereis_name("#{@config[:consumer_worker]}.W#{consumer_number}") do
