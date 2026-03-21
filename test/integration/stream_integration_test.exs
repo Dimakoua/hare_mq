@@ -145,7 +145,7 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     {:ok, pub_pid} = StreamNextPublisher.start_link()
     {:ok, cons_pid} = StreamNextConsumer.start_link()
 
-    assert {:ok, _} = Mgmt.wait_for_queue(@next_q)
+    assert :ok = Mgmt.wait_for_consumers(@next_q)
     wait_until(fn -> StreamNextPublisher.publish_message("count_test") == :ok end)
 
     # Stream queues retain messages — management API reflects the stored count
@@ -163,7 +163,7 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     {:ok, pub_pid} = StreamNextPublisher.start_link()
     {:ok, first_pid} = StreamNextConsumer.start_link()
 
-    assert {:ok, _} = Mgmt.wait_for_queue(@next_q)
+    assert :ok = Mgmt.wait_for_consumers(@next_q)
 
     wait_until(fn -> StreamNextPublisher.publish_message("replay_msg_1") == :ok end)
     wait_until(fn -> StreamNextPublisher.publish_message("replay_msg_2") == :ok end)

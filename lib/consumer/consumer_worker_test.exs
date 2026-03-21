@@ -58,6 +58,13 @@ defmodule HareMq.Worker.ConsumerTest do
     {:ok, pub_pid} = TestPublisher.start_link()
     {:ok, cons_pid} = TestConsumer.start_link()
 
+    wait_until(fn ->
+      case GenServer.call({:global, TestConsumer}, :get_channel) do
+        %{consumer_tag: tag} when is_binary(tag) -> true
+        _ -> false
+      end
+    end)
+
     wait_until(fn -> TestPublisher.publish_message(@test_message) == :ok end)
 
     assert_receive {:consumed, @test_message}, 5_000

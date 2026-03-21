@@ -258,6 +258,15 @@ defmodule HareMq.Worker.Consumer do
     {:noreply, state}
   end
 
+  def handle_info({:DOWN, _, :process, _pid, reason}, state) do
+    Logger.error("worker #{__MODULE__} was DOWN")
+    {:stop, {:connection_lost, reason}, state}
+  end
+
+  def handle_info({:EXIT, _pid, reason}, state) do
+    {:stop, {:connection_lost, reason}, state}
+  end
+
   defp consume_result_status(:ok), do: :ok
   defp consume_result_status({:ok, _}), do: :ok
   defp consume_result_status(:error), do: :error
@@ -281,15 +290,6 @@ defmodule HareMq.Worker.Consumer do
       {:ok, decoded} -> decoded
       {:error, _} -> payload
     end
-  end
-
-  def handle_info({:DOWN, _, :process, _pid, reason}, state) do
-    Logger.error("worker #{__MODULE__} was DOWN")
-    {:stop, {:connection_lost, reason}, state}
-  end
-
-  def handle_info({:EXIT, _pid, reason}, state) do
-    {:stop, {:connection_lost, reason}, state}
   end
 
   def terminate(reason, state) do
