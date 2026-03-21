@@ -315,6 +315,66 @@ Low-level helpers for declaring and binding exchanges and queues. Exchange type 
 
 ---
 
+## Telemetry
+
+HareMq emits [Telemetry](https://hexdocs.pm/telemetry) events throughout its lifecycle. Attach handlers with `:telemetry.attach_many/4`:
+
+```elixir
+:telemetry.attach_many(
+  "my-app-hare-mq",
+  [
+    [:hare_mq, :connection, :connected],
+    [:hare_mq, :connection, :disconnected],
+    [:hare_mq, :connection, :reconnecting],
+    [:hare_mq, :consumer, :message, :stop],
+    [:hare_mq, :retry_publisher, :message, :dead_lettered]
+  ],
+  fn event, measurements, metadata, _config ->
+    require Logger
+    Logger.info("[hare_mq] #{inspect(event)} #{inspect(measurements)} #{inspect(metadata)}")
+  end,
+  nil
+)
+```
+
+### Connection events
+
+| Event | When |
+|---|---|
+| `[:hare_mq, :connection, :connected]` | Broker connection opened |
+| `[:hare_mq, :connection, :disconnected]` | Monitored connection process went down |
+| `[:hare_mq, :connection, :reconnecting]` | Reconnect attempt scheduled |
+
+### Consumer events
+
+| Event | When |
+|---|---|
+| `[:hare_mq, :consumer, :connected]` | Channel open and `Basic.consume` called |
+| `[:hare_mq, :consumer, :message, :start]` | `consume/1` callback is about to be invoked |
+| `[:hare_mq, :consumer, :message, :stop]` | `consume/1` returned; metadata includes `:result` (`:ok`/`:error`) and `:duration` |
+| `[:hare_mq, :consumer, :message, :exception]` | `consume/1` raised an exception |
+
+The `:start`/`:stop`/`:exception` events follow the standard [`:telemetry.span`](https://hexdocs.pm/telemetry/telemetry.html#span/3) contract.
+
+### Publisher events
+
+| Event | When |
+|---|---|
+| `[:hare_mq, :publisher, :connected]` | Publisher channel opened |
+| `[:hare_mq, :publisher, :message, :published]` | Message published successfully |
+| `[:hare_mq, :publisher, :message, :not_connected]` | Publish attempted without a channel |
+
+### Retry publisher events
+
+| Event | When |
+|---|---|
+| `[:hare_mq, :retry_publisher, :message, :retried]` | Failed message sent to a delay queue; measurements include `:retry_count` |
+| `[:hare_mq, :retry_publisher, :message, :dead_lettered]` | Message exceeded `retry_limit` and moved to dead-letter queue |
+
+See `HareMq.Telemetry` for the full measurements/metadata reference for each event.
+
+---
+
 ## Contributing and Testing
 
 We welcome contributions. Please write tests for any new features or bug fixes using [ExUnit](https://hexdocs.pm/ex_unit/ExUnit.html). Test files live under `test/` and `lib/` (integration tests alongside source).
