@@ -40,14 +40,17 @@ defmodule HareMq.RetryPublisher do
   def republish(payload, %Configuration{} = configuration, %{headers: headers}) do
     retry_count = retry_count(headers)
 
-    retry_options = [
-      persistent: true,
-      headers: [retry_count: retry_count + 1]
-    ]
+    # Preserve all original headers; only replace retry_count
+    base_headers = if is_list(headers), do: headers, else: []
+    other_headers = Enum.reject(base_headers, fn
+      {"retry_count", _, _} -> true
+      _ -> false
+    end)
+    merged_headers = [{"retry_count", :long, retry_count + 1} | other_headers]
 
     if(retry_count < configuration.retry_limit) do
       Logger.debug("Sending message to a delay queue")
-      republish_to_delay_queue(payload, configuration, retry_count)
+      republish_to_delay_queue(payload, configuration, retry_count, merged_headers)
     else
       Logger.debug("Sending message to a dead messages queue")
 
@@ -62,7 +65,7 @@ defmodule HareMq.RetryPublisher do
         "",
         configuration.dead_queue_name,
         payload,
-        retry_options
+        [persistent: true, headers: merged_headers]
       )
     end
   end
@@ -70,13 +73,11 @@ defmodule HareMq.RetryPublisher do
   defp republish_to_delay_queue(
          payload,
          %Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = configuration,
-         retry_count
+         retry_count,
+         merged_headers
        )
        when is_list(delay_cascade_in_ms) and delay_cascade_in_ms != [] do
-    retry_options = [
-      persistent: true,
-      headers: [retry_count: retry_count + 1]
-    ]
+    retry_options = [persistent: true, headers: merged_headers]
 
     sorted = Enum.sort(delay_cascade_in_ms)
 
@@ -104,11 +105,8 @@ defmodule HareMq.RetryPublisher do
     )
   end
 
-  defp republish_to_delay_queue(payload, %Configuration{} = configuration, retry_count) do
-    retry_options = [
-      persistent: true,
-      headers: [retry_count: retry_count + 1]
-    ]
+  defp republish_to_delay_queue(payload, %Configuration{} = configuration, retry_count, merged_headers) do
+    retry_options = [persistent: true, headers: merged_headers]
 
     :telemetry.execute(
       [:hare_mq, :retry_publisher, :message, :retried],

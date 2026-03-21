@@ -88,12 +88,13 @@ defmodule HareMq.DedupCache do
     hash = generate_hash(message, deduplication_keys)
     now = :os.system_time(:millisecond)
 
-    case :ets.lookup(table, hash) do
-      [{^hash, cached_message, expired_at}] when expired_at > now ->
-        check_keys(message, cached_message, deduplication_keys)
+    # Use select so the expiry guard and key match are evaluated atomically
+    # in a single C-level ETS operation, with no window between lookup and check.
+    match_spec = [{{hash, :"$1", :"$2"}, [{:>, :"$2", now}], [:"$1"]}]
 
-      _ ->
-        false
+    case :ets.select(table, match_spec) do
+      [cached_message] -> check_keys(message, cached_message, deduplication_keys)
+      _ -> false
     end
   rescue
     # Table doesn't exist (cache not started)
