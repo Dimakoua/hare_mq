@@ -27,7 +27,7 @@ defmodule HareMq.DynamicSupervisor do
   """
   def init([config: _, consume: _] = opts) do
     {:ok, _} =
-      Task.start_link(fn ->
+      Task.start(fn ->
         start_consumers(opts)
         start_auto_scaler(opts)
       end)
