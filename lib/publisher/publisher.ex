@@ -121,15 +121,19 @@ defmodule HareMq.Publisher do
             {:error, :not_connected}
 
           {:ok, channel} ->
-            encoded_message = Jason.encode!(message)
+            case Jason.encode(message) do
+              {:ok, encoded_message} ->
+                AMQP.Basic.publish(
+                  channel,
+                  @config[:exchange],
+                  @config[:routing_key],
+                  encoded_message,
+                  persistent: true
+                )
 
-            AMQP.Basic.publish(
-              channel,
-              @config[:exchange],
-              @config[:routing_key],
-              encoded_message,
-              persistent: true
-            )
+              {:error, reason} ->
+                {:error, {:encoding_failed, reason}}
+            end
         end
       end
 
