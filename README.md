@@ -234,6 +234,118 @@ end
 
 Multiple `DynamicConsumer` modules can coexist in the same node — each gets its own named supervisor (`MyApp.MessageConsumer.Supervisor`) and its own auto-scaler (`MyApp.MessageConsumer.AutoScaler`).
 
+### How auto-scaling works
+
+The `HareMq.AutoScaler` is a GenServer that runs alongside the consumer pool. Every `check_interval` milliseconds it performs the following loop:
+
+1. **Sample queue depth** — walks live workers `W1 → W{n}` (via `:global` lookup) and asks the first responsive one for the current AMQP queue message count. If no worker responds it assumes depth 0 to avoid a false scale-down on transient failures.
+
+2. **Calculate target** — applies ceiling division:
+
+   ```
+   target = ceil(queue_length / messages_per_consumer)
+   target = clamp(target, min_consumers, max_consumers)
+   ```
+
+   So with `messages_per_consumer: 100` and 350 queued messages the target is `4`.
+
+3. **Scale up** — if `target > current`, starts `target - current` new workers named `W{current+1}`, `W{current+2}`, …
+
+4. **Scale down** — if `target < current`, gracefully removes `current - target` workers starting from the highest-numbered one (`W{current}` down). Each removal sends a `:cancel_consume` call (with a 70-second timeout) to give the worker time to finish its current message.
+
+5. **Reschedule** — schedules the next check after `check_interval` ms.
+
+Worker names always follow the pattern `"<ModuleName>.W<n>"`, e.g. `"MyApp.MessageConsumer.W3"`. This naming is stable across restarts, so the auto-scaler and supervisor always agree on which processes exist.
+
+---
+
+## Consumer Registration
+
+HareMq uses Erlang's [`:global`](https://www.erlang.org/doc/man/global.html) distributed name registry for all long-lived processes. This has three consequences:
+
+- **Cluster-wide uniqueness** — a process registered as `{:global, name}` occupies that name on every node in the cluster. A second `start_link` for the same name returns `{:ok, :already_started}` instead of spawning a duplicate.
+- **Location transparency** — callers look up `{:global, name}` without knowing which node hosts the PID.
+- **Automatic failover** — when the node hosting a worker goes down, the worker's supervisor (running on any remaining node) restarts it and re-registers it globally under the same name.
+
+### Registration map
+
+| Process | Registered as | Scope |
+|---|---|---|
+| `HareMq.Connection` | `{:global, HareMq.Connection}` or custom name | global |
+| `HareMq.Publisher` | `{:global, MyApp.MyPublisher}` | global |
+| `HareMq.Worker.Consumer` (single) | `{:global, MyApp.MyConsumer}` | global |
+| `HareMq.Worker.Consumer` (pool worker) | `{:global, "MyApp.MyConsumer.W1"}` etc. | global |
+| `HareMq.AutoScaler` | `{:global, :"MyApp.MyConsumer.AutoScaler"}` | global |
+| `HareMq.DedupCache` | `{:global, HareMq.DedupCache}` or custom name | global |
+| `HareMq.DynamicSupervisor` | `:"MyApp.MyConsumer.Supervisor"` (plain atom) | **local** (per-node) |
+
+The `DynamicSupervisor` is intentionally local — each node manages its own worker pool. Workers themselves are globally registered so the auto-scaler and retry machinery can find them regardless of which node they started on.
+
+### Before every global registration
+
+Before calling `GenServer.start_link` with a global name, `HareMq.GlobalNodeManager.wait_for_all_nodes_ready/1` is called. On a single-node deployment it returns immediately. On a multi-node cluster it calls `:global.sync/0`, which blocks until the registry has been reconciled across all connected nodes. This prevents the split-brain scenario where two nodes simultaneously register the same name.
+
+---
+
+## Multi-Node Deployments
+
+### One worker per cluster (default)
+
+Because workers register globally, running the same `DynamicConsumer` module on multiple nodes results in **one active worker per worker name** across the whole cluster. Each node starts its own `DynamicSupervisor` (locally), but when `W1` is started on node A, any attempt to start `W1` on node B returns `{:ok, :already_started}` — no duplicate consumers, no double-processing.
+
+If node A crashes, the supervisor on node B (or A after it restarts) creates a fresh `W1` process and re-registers it globally. Message processing resumes from where RabbitMQ left off (unacked messages are re-queued automatically by the broker).
+
+```
+Node A                       Node B
+──────────────────────────   ──────────────────────────
+DynamicSupervisor (local)    DynamicSupervisor (local)
+  └─ W1 {:global}  ◄─────── already_started, no-op
+  └─ W2 {:global}  ◄─────── already_started, no-op
+  └─ W3 {:global}            └─ W3 {:global}  (W3 not yet started on A)
+```
+
+### Per-node consumers
+
+If you want each node to run its own independent consumer pool (e.g., node-local processing, or fan-out to all nodes), use distinct module names or queue names per node:
+
+```elixir
+# In your application start/2, pick a node-specific queue:
+queue = "tasks.#{node()}"
+
+children = [
+  {MyApp.NodeConsumer, queue_name: queue}
+]
+```
+
+Alternatively, define separate modules with different `queue_name` values for each role:
+
+```elixir
+defmodule MyApp.PrimaryConsumer do
+  use HareMq.DynamicConsumer, queue_name: "tasks.primary", consumer_count: 4
+  def consume(msg), do: ...
+end
+
+defmodule MyApp.AuditConsumer do
+  use HareMq.DynamicConsumer, queue_name: "tasks.audit", consumer_count: 1
+  def consume(msg), do: ...
+end
+```
+
+### Connecting nodes
+
+HareMq relies on standard Erlang distribution. Nodes must be connected (via `Node.connect/1` or the `--name`/`--cookie` VM flags) **before** consumers start registering globally, otherwise `:global.sync/0` has no peers to synchronize with and each node registers its own copy.
+
+A typical Kubernetes or distributed release set-up using [libcluster](https://hex.pm/packages/libcluster):
+
+```elixir
+children = [
+  {Cluster.Supervisor, [topologies, [name: MyApp.ClusterSupervisor]]},
+  # HareMq consumers start after the cluster is formed:
+  MyApp.MessageConsumer,
+  MyApp.MessageProducer
+]
+```
+
 ---
 
 ## Usage in Application
@@ -395,249 +507,3 @@ RABBITMQ_URL=amqp://guest:guest@localhost mix test
 
 If you enjoy using HareMq, please consider giving us a star on GitHub! Your feedback and support are highly appreciated.
 [GitHub](https://github.com/Dimakoua/hare_mq)
-
-
-## Watch video tutorial
-
-### Introduction
-Learn the basics of HareMq and how it can simplify your interaction with AMQP systems.
-
-[![Watch the video](https://img.youtube.com/vi/cohYx1E3d0s/hqdefault.jpg)](https://youtu.be/cohYx1E3d0s)
-
-### Tutorial
-Dive deeper into the features and capabilities of HareMq with our step-by-step tutorial.
-
-[![Watch the video](https://img.youtube.com/vi/iajN-1gCr34/hqdefault.jpg)](https://youtu.be/iajN-1gCr34)
-
-## Getting Started
-
-To use HareMq in your Elixir project, follow these steps:
-
-Install the required dependencies by adding them to your `mix.exs` file:
-
-```elixir
-defp deps do
-  [
-    {:hare_mq, "~> 1.3.0"}
-  ]
-end
-```
-
-### Publisher
-
-The `MyApp.MessageProducer` module is responsible for publishing messages to a message queue using the `HareMq.Publisher` behavior. This module provides an interface for sending messages with specified routing and exchange settings. It also supports deduplication based on specific keys.
-
-The `MyApp.MessageProducer` module is configured with the following options:
-
-- **`routing_key`**: Specifies the routing key used to route messages to the appropriate queue. In this example, the routing key is set to `"routing_key"`.
-
-- **`exchange`**: Defines the exchange to which messages will be published. In this example, the exchange is set to `"exchange"`.
-
-- **`unique`**: This configuration option sets up deduplication rules:
-  - **`period`**: Defines the time period for deduplication in ms. In this example, it is set to `:infinity`, meaning that messages are considered unique indefinitely based on the specified keys.
-  - **`keys`**: A list of keys used to determine message uniqueness. If the message is a string, deduplication is managed by default behavior and you do not need to specify `keys`. If provided, deduplication is based on the specified keys. In the example, deduplication is based on the `:project_id` key.
-
-
-
-```elixir
-defmodule MyApp.MessageProducer do
-  use HareMq.Publisher,
-    routing_key: "routing_key",
-    exchange: "exchange"
-
-  # Function to send a message to the message queue.
-  def send_message(message) do
-    # Publish the message using the HareMq.Publisher behavior.
-    publish_message(message)
-  end
-end
-```
-
-```elixir
-defmodule MyApp.MessageProducer do
-  use HareMq.Publisher,
-    routing_key: "routing_key",
-    exchange: "exchange",
-    unique: [
-      period: :infinity,
-      keys: [:project_id]
-    ]
-
-  # Function to send a message to the message queue.
-  def send_message(message) do
-    # Publish the message using the HareMq.Publisher behavior.
-    publish_message(message)
-  end
-end
-```
-
-
-### Consumer
-
-The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.Consumer` behavior. This module provides the functionality to receive and process messages with specific routing and exchange settings.
-
-The `MyApp.MessageConsumer` module is configured with the following options:
-
-- **`queue_name`**: Specifies the name of the queue from which messages will be consumed. In this example, the queue name is set to `"queue_name"`.
-
-- **`routing_key`**: Defines the routing key used to filter messages. In this example, the routing key is set to `"routing_key"`.
-
-- **`exchange`**: Defines the exchange from which messages will be consumed. In this example, the exchange is set to `"exchange"`.
-
-```elixir
-defmodule MyApp.MessageConsumer do
-  use HareMq.Consumer,
-    queue_name: "queue_name",
-    routing_key: "routing_key",
-    exchange: "exchange"
-
-  # Function to process a received message.
-  def consume(message) do
-    # Log the beginning of the message processing.
-    IO.puts("Processing message: #{inspect(message)}")
-  end
-end
-```
-
-### Dynamic Consumer
-
-The `MyApp.MessageConsumer` module is designed to consume messages from a message queue using the `HareMq.DynamicConsumer` behavior. This module provides the functionality to receive and process messages with dynamic scaling based on the specified number of worker processes.
-
-The `MyApp.MessageConsumer` module is configured with the following options:
-
-- **`queue_name`**: Specifies the name of the queue from which messages will be consumed. In this example, the queue name is set to `"queue_name"`.
-
-- **`routing_key`**: Defines the routing key used to filter messages. In this example, the routing key is set to `"routing_key"`.
-
-- **`exchange`**: Defines the exchange from which messages will be consumed. In this example, the exchange is set to `"exchange"`.
-
-- **`consumer_count`**: Indicates the number of worker processes that should be used to handle incoming messages. In this example, `consumer_count` is set to `10`, which means that 10 worker processes will be run to consume and process messages concurrently.
-
-- **`auto_scaling`**: Allows configuration for dynamic scaling of consumers:
-  - **`min_consumers`**: The minimum number of consumers to maintain.
-  - **`max_consumers`**: The maximum number of consumers to maintain.
-  - **`messages_per_consumer`**: The number of messages each consumer should handle before scaling adjustments are considered.
-  - **`check_interval`**: The interval (in milliseconds) at which to check the queue length and adjust the number of consumers accordingly.
-
-```elixir
-defmodule MyApp.MessageConsumer do
-  use HareMq.DynamicConsumer,
-    queue_name: "queue_name",
-    routing_key: "routing_key",
-    exchange: "exchange",
-    consumer_count: 10
-
-  # Function to process a received message.
-  def consume(message) do
-    # Log the beginning of the message processing.
-    IO.puts("Processing message: #{inspect(message)}")
-  end
-end
-```
-
-### MessageConsumer with auto scaling
-```elixir
-defmodule MyApp.MessageConsumer do
-  use HareMq.DynamicConsumer,
-    queue_name: "queue_name",
-    routing_key: "routing_key",
-    exchange: "exchange",
-    consumer_count: 10,
-    auto_scaling: [
-      min_consumers: 1,
-      max_consumers: 20,
-      messages_per_consumer: 100,
-      check_interval: 5_000
-    ]
-
-  # Function to process a received message.
-  def consume(message) do
-    # Log the beginning of the message processing.
-    IO.puts("Processing message: #{inspect(message)}")
-  end
-end
-```
-
-### Usage in Application: MyApp.Application
-```elixir
-defmodule MyApp.Application do
-  use Application
-
-  def start(_type, _args) do
-    children = [
-      # Start the message consumer.
-      MyApp.MessageConsumer,
-
-      # Start the message producer.
-      MyApp.MessageProducer,
-    ]
-
-    opts = [strategy: :one_for_one, name: MyApp.Supervisor]
-    Supervisor.start_link(children, opts)
-  end
-end
-```
-## Configuration
-```elixir
-config :hare_mq, 
-  :amqp,
-    host: "localhost",
-    url: "amqp://guest:guest@myhost:12345",
-    user: "guest",
-    password: "guest"
-
-config :hare_mq, :configuration,
-  delay_in_ms: 10_000,
-  retry_limit: 15,
-  message_ttl: 31_449_600
-```
-
-## Rate Us:
-If you enjoy using HareMq, please consider giving us a star on GitHub! Your feedback and support are highly appreciated.
-
-## Modules
-
-### HareMq.Configuration
-
-The `HareMq.Configuration` module defines a configuration structure for AMQP connections and queues. It provides a function to retrieve queue configurations.
-
-### HareMq.Connection
-
-The `HareMq.Connection` module manages the connection to the AMQP server using the GenServer behavior. It handles connection monitoring and reconnects in case of failures.
-
-### HareMq.Queue
-
-The `HareMq.Queue` module provides functions for declaring and configuring queues, including binding, declaring regular, delayed, and dead-letter queues.
-
-### HareMq.Exchange
-
-The `HareMq.Exchange` module offers functions for declaring and binding exchanges, allowing users to set up routing between queues.
-
-### HareMq.Publisher
-
-The `HareMq.Publisher` module defines a behavior for publishing messages to an AMQP system. It includes connection handling, channel retrieval, and message publishing with a retry mechanism.
-
-### HareMq.RetryPublisher
-
-The `HareMq.RetryPublisher` module handles the republishing of messages with retry logic. It tracks the retry count in message headers and decides whether to republish to a delay queue or a dead letter queue.
-
-### HareMq.Consumer
-
-The `HareMq.Consumer` module defines a behavior for consuming messages from an AMQP system. It includes connection setup, channel declaration, and message consumption with error handling and retry mechanisms.
-
-## Contributing and Testing
-
-We welcome contributions to improve and expand this project. If you're interested in contributing, please follow these steps:
-
-### Writing Tests
-
-To ensure the stability and reliability of the project, we strongly encourage writing tests for any new features or bug fixes. Tests are crucial for maintaining the quality of the codebase and catching issues early in the development process.
-
-We use [ExUnit](https://hexdocs.pm/ex_unit/ExUnit.html) for testing in Elixir. You can find the test files in the `test/` directory. Follow the existing test patterns and write new tests to cover the functionality you're adding or modifying.
-
-### Running Tests
-
-To run the tests, execute the following command in your terminal:
-
-```bash
-mix test
