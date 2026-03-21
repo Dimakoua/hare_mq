@@ -110,16 +110,16 @@ defmodule HareMq.Configuration do
   )
 
   """
-  def get_queue_configuration(
-        channel: channel,
-        consume_fn: consume_fn,
-        name: name,
-        exchange: exchange,
-        routing_key: routing_key,
-        delay_in_ms: delay_in_ms,
-        retry_limit: retry_limit,
-        delay_cascade_in_ms: delay_cascade_in_ms
-      ) do
+  def get_queue_configuration(opts) when is_list(opts) do
+    channel = Keyword.fetch!(opts, :channel)
+    consume_fn = Keyword.fetch!(opts, :consume_fn)
+    name = Keyword.fetch!(opts, :name)
+    exchange = Keyword.get(opts, :exchange)
+    routing_key = Keyword.get(opts, :routing_key, name)
+    delay_in_ms = Keyword.get(opts, :delay_in_ms)
+    retry_limit = Keyword.get(opts, :retry_limit)
+    delay_cascade_in_ms = Keyword.get(opts, :delay_cascade_in_ms)
+
     %Configuration{
       channel: channel,
       consume_fn: consume_fn,
