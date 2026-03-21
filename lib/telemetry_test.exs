@@ -118,7 +118,7 @@ defmodule HareMq.TelemetryTest do
   # ---------------------------------------------------------------------------
 
   setup do
-    Application.put_env(:hare_mq, :amqp, url: "amqp://guest:guest@rabbitmq")
+    Application.put_env(:hare_mq, :amqp, url: HareMq.Test.RabbitMQManagement.amqp_url())
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
 
     for name <- [TelPublisher, TelOkPublisher, TelErrorPublisher, RetryTelPublisher,
@@ -195,7 +195,7 @@ defmodule HareMq.TelemetryTest do
       GenServer.stop(pid)
       detach(id)
     after
-      Application.put_env(:hare_mq, :amqp, url: "amqp://guest:guest@rabbitmq")
+      Application.put_env(:hare_mq, :amqp, url: HareMq.Test.RabbitMQManagement.amqp_url())
     end
   end
 
