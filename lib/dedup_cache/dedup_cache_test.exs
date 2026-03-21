@@ -86,11 +86,9 @@ defmodule HareMq.DedupCacheTest do
   end
 
   test "should clear expired cache entries" do
-    DedupCache.add("test_message", 1000)
-    # Sleep longer than the TTL
+    DedupCache.add("test_message", 100)
+    # Wait for TTL to expire and the periodic clear to run
     :timer.sleep(2000)
-    # Manually trigger cache clearing
-    DedupCache.handle_info(:clear_cache, %{})
     refute DedupCache.is_dup?("test_message")
   end
 

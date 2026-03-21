@@ -119,10 +119,11 @@ defmodule HareMq.RetryPublisher do
   """
   def republish_dead_messages(%Configuration{} = configuration, count) do
     0..(count - 1)
-    |> Enum.each(fn _ ->
+    |> Enum.reduce_while(:ok, fn _, _ ->
       case AMQP.Basic.get(configuration.channel, configuration.dead_queue_name) do
         {:empty, _} ->
           Logger.debug("Queue is empty")
+          {:halt, :ok}
 
         {:ok, message, %{delivery_tag: tag}} ->
           :ok =
@@ -135,6 +136,7 @@ defmodule HareMq.RetryPublisher do
             )
 
           :ok = AMQP.Basic.ack(configuration.channel, tag)
+          {:cont, :ok}
       end
     end)
   end
