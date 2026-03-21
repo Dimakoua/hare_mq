@@ -88,18 +88,24 @@ defmodule HareMq.Connection do
 
   def handle_info(:connect, _) do
     configs = Application.get_env(:hare_mq, :amqp)
-    host = configs[:url]
 
-    case Connection.open(host) do
-      {:ok, %AMQP.Connection{} = conn} ->
-        Process.monitor(conn.pid)
-        {:noreply, conn}
-
-      {:error, _} ->
-        Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
-
+    case configs[:url] do
+      nil ->
+        Logger.error("[connection] Missing :amqp config. Retrying later...")
         Process.send_after(self(), :connect, @reconnect_interval)
         {:noreply, nil}
+
+      host ->
+        case Connection.open(host) do
+          {:ok, %AMQP.Connection{} = conn} ->
+            Process.monitor(conn.pid)
+            {:noreply, conn}
+
+          {:error, _} ->
+            Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
+            Process.send_after(self(), :connect, @reconnect_interval)
+            {:noreply, nil}
+        end
     end
   end
 
