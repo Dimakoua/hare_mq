@@ -79,7 +79,7 @@ defmodule HareMq.Connection do
 
   def handle_call(:close_connection, _, %AMQP.Connection{} = state) do
     Connection.close(state)
-    {:reply, state, state}
+    {:reply, state, nil}
   end
 
   def handle_call(:close_connection, _, state) do
@@ -104,6 +104,16 @@ defmodule HareMq.Connection do
   end
 
   def handle_info({:DOWN, _, :process, _pid, {:shutdown, :normal}}, _) do
+    {:noreply, nil}
+  end
+
+  def handle_info({:DOWN, _, :process, _pid, {:shutdown, {:server_initiated_close, 200, _}}}, _) do
+    {:noreply, nil}
+  end
+
+  def handle_info({:DOWN, _, :process, _pid, reason} = msg, state) do
+    Logger.error("[connection] Connection lost: #{inspect(reason)}. Reconnecting...")
+    Process.send_after(self(), :connect, @reconnect_interval)
     {:noreply, nil}
   end
 
