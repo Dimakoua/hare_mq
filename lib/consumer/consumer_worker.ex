@@ -1,8 +1,7 @@
-require Logger
-use AMQP
-
 defmodule HareMq.Worker.Consumer do
   use GenServer
+  require Logger
+  use AMQP
 
   @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
                         :reconnect_interval_in_ms
