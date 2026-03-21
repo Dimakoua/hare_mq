@@ -4,6 +4,9 @@ defmodule HareMq.ConnectionTest do
 
   setup do
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    stop_global(HareMq.Connection)
+
+    on_exit(fn -> stop_global(HareMq.Connection) end)
   end
 
   test "successfully connects and gets connection" do

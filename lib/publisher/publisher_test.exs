@@ -8,7 +8,11 @@ defmodule HareMq.PublisherTest do
 
   setup do
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
-    Connection.start_link(nil)
+    stop_global(HareMq.Connection)
+    Connection.start_link([])
+
+    on_exit(fn -> stop_global(HareMq.Connection) end)
+
     :ok
   end
 

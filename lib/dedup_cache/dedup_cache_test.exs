@@ -4,8 +4,11 @@ defmodule HareMq.DedupCacheTest do
   alias HareMq.DedupCache
 
   setup do
-    Connection.start_link(nil)
+    stop_global(HareMq.DedupCache)
     {:ok, _pid} = DedupCache.start_link([])
+
+    on_exit(fn -> stop_global(HareMq.DedupCache) end)
+
     :ok
   end
 
