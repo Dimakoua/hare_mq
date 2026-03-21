@@ -85,7 +85,7 @@ defmodule HareMq.AutoScaler do
     |> min(config.max_consumers)
   end
 
-  defp generate_consumer_name(worker, count) do
-    "#{worker}.W#{count}"
+  defp generate_consumer_name(module_name, count) do
+    "#{module_name}.W#{count}"
   end
 end
