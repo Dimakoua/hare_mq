@@ -27,7 +27,9 @@ defmodule HareMq.DynamicConsumer do
         delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
         consumer_worker: HareMq.Worker.Consumer,
         module_name: __MODULE__,
-        connection_name: @opts[:connection_name] || {:global, HareMq.Connection}
+        connection_name: @opts[:connection_name] || {:global, HareMq.Connection},
+        stream: @opts[:stream] || false,
+        stream_offset: @opts[:stream_offset] || "next"
       ]
 
       def child_spec(opts) do

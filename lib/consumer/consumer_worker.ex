@@ -27,6 +27,11 @@ defmodule HareMq.Worker.Consumer do
     {:ok, %HareMq.Configuration{}}
   end
 
+  def declare_queues(%HareMq.Configuration{stream: true} = config) do
+    {:ok, _} = HareMq.Queue.declare_stream_queue(config)
+    :ok
+  end
+
   def declare_queues(config) do
     :ok = HareMq.Exchange.declare(channel: config.channel, name: config.exchange, type: :topic)
     :ok = HareMq.Exchange.declare(channel: config.channel, name: config.queue_name, type: :topic)
@@ -42,6 +47,11 @@ defmodule HareMq.Worker.Consumer do
       nil -> {:error, :not_connected}
       state -> {:ok, state}
     end
+  end
+
+  defp process_result(_result, _payload, %{stream: true} = state, tag, _metadata) do
+    # Stream queues are immutable — ack to advance the credit window, never retry
+    Basic.ack(state.channel, tag)
   end
 
   defp process_result(result, payload, state, tag, metadata) do
@@ -101,14 +111,16 @@ defmodule HareMq.Worker.Consumer do
                 routing_key: config[:routing_key],
                 delay_in_ms: config[:delay_in_ms],
                 retry_limit: config[:retry_limit],
-                delay_cascade_in_ms: config[:delay_cascade_in_ms]
+                delay_cascade_in_ms: config[:delay_cascade_in_ms],
+                stream: config[:stream],
+                stream_offset: config[:stream_offset]
               )
 
             Basic.qos(chan, prefetch_count: config[:prefetch_count])
 
             declare_queues(queue_configuration)
 
-            {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name])
+            {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name], nil, stream_consume_opts(queue_configuration))
 
             {:noreply, HareMq.Configuration.set_consumer_tag(queue_configuration, consumer_tag)}
 
@@ -194,4 +206,15 @@ defmodule HareMq.Worker.Consumer do
   defp close_chan(state) do
     AMQP.Channel.close(state.channel)
   end
+
+  defp stream_consume_opts(%HareMq.Configuration{stream: true, stream_offset: offset}) do
+    [arguments: [stream_offset_arg(offset)]]
+  end
+
+  defp stream_consume_opts(_config), do: []
+
+  defp stream_offset_arg(offset) when is_binary(offset), do: {"x-stream-offset", :longstr, offset}
+  defp stream_offset_arg(offset) when is_integer(offset), do: {"x-stream-offset", :long, offset}
+  defp stream_offset_arg(%DateTime{} = dt), do: {"x-stream-offset", :timestamp, DateTime.to_unix(dt)}
+  defp stream_offset_arg(nil), do: {"x-stream-offset", :longstr, "next"}
 end

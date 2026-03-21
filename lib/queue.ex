@@ -109,4 +109,22 @@ defmodule HareMq.Queue do
       ]
     )
   end
+
+  @doc """
+  Declares a durable RabbitMQ stream queue.
+
+  Stream queues are persistent, append-only logs. Messages are not removed
+  after consumption — each consumer maintains its own offset.
+
+  The queue is declared with `x-queue-type: stream`. No exchange binding,
+  delay queue, or dead-letter queue is needed for stream consumers.
+  """
+  def declare_stream_queue(%Configuration{} = config) do
+    AMQP.Queue.declare(
+      config.channel,
+      config.queue_name,
+      durable: true,
+      arguments: [{"x-queue-type", :longstr, "stream"}]
+    )
+  end
 end

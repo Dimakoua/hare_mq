@@ -20,6 +20,8 @@ defmodule HareMq.Configuration do
   | `:durable` | Always `true` |
   | `:consumer_tag` | Set after `Basic.consume/2` via `set_consumer_tag/2` |
   | `:state` | `:running` or `:cancelled` |
+  | `:stream` | `true` when consuming a stream queue (default `false`) |
+  | `:stream_offset` | Where to start consuming: `"first"`, `"last"`, `"next"` (default), integer offset, or `%DateTime{}` |
 
   ## Default resolution
 
@@ -47,7 +49,9 @@ defmodule HareMq.Configuration do
     :retry_limit,
     :durable,
     :consumer_tag,
-    :state
+    :state,
+    :stream,
+    :stream_offset
   ]
 
   @doc """
@@ -94,6 +98,8 @@ defmodule HareMq.Configuration do
     delay_in_ms = Keyword.get(opts, :delay_in_ms)
     retry_limit = Keyword.get(opts, :retry_limit)
     delay_cascade_in_ms = Keyword.get(opts, :delay_cascade_in_ms)
+    stream = Keyword.get(opts, :stream, false)
+    stream_offset = Keyword.get(opts, :stream_offset, "next")
 
     %Configuration{
       channel: channel,
@@ -109,7 +115,9 @@ defmodule HareMq.Configuration do
       retry_limit: if(is_nil(retry_limit), do: config_value(:retry_limit, 15), else: retry_limit),
       durable: true,
       consumer_tag: nil,
-      state: :running
+      state: :running,
+      stream: stream,
+      stream_offset: stream_offset
     }
   end
 
@@ -127,15 +135,15 @@ defmodule HareMq.Configuration do
 
       updated_config = set_consumer_tag(config, "consumer_1")
   """
+  def set_consumer_tag(%Configuration{} = configuration, consumer_tag) do
+    %Configuration{configuration | consumer_tag: consumer_tag}
+  end
+
   defp config_value(key, default) do
     case (Application.get_env(:hare_mq, :configuration) || [])[key] do
       nil -> default
       value -> value
     end
-  end
-
-  def set_consumer_tag(%Configuration{} = configuration, consumer_tag) do
-    %Configuration{configuration | consumer_tag: consumer_tag}
   end
 
   @doc """
