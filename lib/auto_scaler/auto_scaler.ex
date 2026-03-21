@@ -59,7 +59,7 @@ defmodule HareMq.AutoScaler do
         end)
 
       target_consumer_count < current_count ->
-        Enum.each(current_count..(target_consumer_count + 1), fn index ->
+        Enum.each(current_count..(target_consumer_count + 1)//-1, fn index ->
           HareMq.DynamicSupervisor.remove_consumer(
             generate_consumer_name(config.module_name, index)
           )
