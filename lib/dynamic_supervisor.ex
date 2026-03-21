@@ -2,6 +2,10 @@ defmodule HareMq.DynamicSupervisor do
   use DynamicSupervisor
   require Logger
   alias HareMq.AutoScalerConfiguration
+
+  # Timeout for the :cancel_consume GenServer.call when gracefully removing
+  # a consumer. Set high enough to let a slow consume/1 callback finish its
+  # current message before the worker is terminated.
   @timeout 70_000
 
   @moduledoc """

@@ -65,7 +65,7 @@ defmodule HareMq.AutoScalerConfiguration do
         auto_scaling: auto_scaling,
         consumer_opts: consumer_opts
       ) do
-    %HareMq.AutoScalerConfiguration{
+    config = %HareMq.AutoScalerConfiguration{
       queue_name: queue_name,
       consumer_worker: consumer_worker,
       module_name: module_name,
@@ -78,6 +78,13 @@ defmodule HareMq.AutoScalerConfiguration do
         auto_scaling[:messages_per_consumer] || auto_scaler_config(:messages_per_consumer, 10),
       check_interval: auto_scaling[:check_interval] || auto_scaler_config(:check_interval, 5_000)
     }
+
+    if config.min_consumers > config.max_consumers do
+      raise ArgumentError,
+            "[AutoScaler] min_consumers (#{config.min_consumers}) must be <= max_consumers (#{config.max_consumers})"
+    end
+
+    config
   end
 
   defp auto_scaler_config(key, default),

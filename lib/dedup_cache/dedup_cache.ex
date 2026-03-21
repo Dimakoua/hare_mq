@@ -73,13 +73,17 @@ defmodule HareMq.DedupCache do
   def handle_call({:add, message, deduplication_ttl, deduplication_keys}, _from, table) do
     hash = generate_hash(message, deduplication_keys)
 
-    ttl_ms =
+    # Store :infinity as the atom directly. Erlang term ordering places atoms
+    # above all numbers, so :infinity > any_integer is always true. This means
+    # ets_is_dup?'s '>' guard always passes, and clear_cache's '=<' guard
+    # never deletes these entries — achieving a true infinite TTL without
+    # relying on a large magic number that would eventually expire.
+    expired_at =
       case deduplication_ttl do
-        :infinity -> 31_556_952_000 * 5
-        _ -> deduplication_ttl
+        :infinity -> :infinity
+        ms -> :os.system_time(:millisecond) + ms
       end
 
-    expired_at = :os.system_time(:millisecond) + ttl_ms
     :ets.insert(table, {hash, message, expired_at})
     {:reply, :ok, table}
   end

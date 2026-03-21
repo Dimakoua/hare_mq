@@ -67,12 +67,17 @@ defmodule HareMq.DynamicConsumer do
       ]
 
       def child_spec(opts) do
+        # shutdown: allows the supervisor up to this many ms for a graceful
+        # :cancel_consume → worker-exit sequence. Defaults to 500 ms but can
+        # be overridden via `shutdown_timeout:` in the consumer options.
+        shutdown = @opts[:shutdown_timeout] || 500
+
         %{
           id: __MODULE__,
           start: {__MODULE__, :start_link, [opts]},
           type: :worker,
           restart: :permanent,
-          shutdown: 500
+          shutdown: shutdown
         }
       end
 

@@ -48,9 +48,8 @@ defmodule HareMq.Connection do
   end
 
   def init(name) do
-    Process.put(:__hare_mq_connection_name__, name)
     send(self(), :connect)
-    {:ok, nil}
+    {:ok, %{name: name, conn: nil, attempt: 0}}
   end
 
   @doc """
@@ -94,92 +93,86 @@ defmodule HareMq.Connection do
     end
   end
 
-  def handle_call(:get_connection, _, %AMQP.Connection{} = conn) do
-    {:reply, conn, conn}
+  def handle_call(:get_connection, _, %{conn: %AMQP.Connection{} = conn} = state) do
+    {:reply, conn, state}
   end
 
   def handle_call(:get_connection, _, state) do
-    {:reply, state, state}
+    {:reply, nil, state}
   end
 
-  def handle_call(:close_connection, _, %AMQP.Connection{} = state) do
-    Connection.close(state)
-    {:reply, state, nil}
+  def handle_call(:close_connection, _, %{conn: %AMQP.Connection{} = conn} = state) do
+    Connection.close(conn)
+    {:reply, conn, %{state | conn: nil}}
   end
 
   def handle_call(:close_connection, _, state) do
     {:reply, nil, state}
   end
 
-  def handle_info(:connect, _) do
+  def handle_info(:connect, state) do
     configs = Application.get_env(:hare_mq, :amqp)
-    conn_name = Process.get(:__hare_mq_connection_name__)
-    attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
+    attempt = state.attempt + 1
 
     case configs[:url] do
       nil ->
-        Process.put(:__hare_mq_connect_attempt__, attempt)
         delay = backoff_delay(attempt)
         Logger.error("[connection] Missing :amqp config. Retrying in #{delay}ms (attempt #{attempt})...")
         :telemetry.execute(
           [:hare_mq, :connection, :reconnecting],
           %{retry_delay_ms: delay},
-          %{connection_name: conn_name, reason: :missing_config}
+          %{connection_name: state.name, reason: :missing_config}
         )
         Process.send_after(self(), :connect, delay)
-        {:noreply, nil}
+        {:noreply, %{state | attempt: attempt}}
 
       host ->
         case Connection.open(host) do
           {:ok, %AMQP.Connection{} = conn} ->
-            Process.put(:__hare_mq_connect_attempt__, 0)
             Process.monitor(conn.pid)
             :telemetry.execute(
               [:hare_mq, :connection, :connected],
               %{system_time: System.system_time()},
-              %{connection_name: conn_name, host: host}
+              %{connection_name: state.name, host: host}
             )
-            {:noreply, conn}
+            {:noreply, %{state | conn: conn, attempt: 0}}
 
           {:error, reason} ->
-            Process.put(:__hare_mq_connect_attempt__, attempt)
             delay = backoff_delay(attempt)
             Logger.error("[connection] Failed to connect #{host}. Reconnecting in #{delay}ms (attempt #{attempt})...")
             :telemetry.execute(
               [:hare_mq, :connection, :reconnecting],
               %{retry_delay_ms: delay},
-              %{connection_name: conn_name, host: host, reason: reason}
+              %{connection_name: state.name, host: host, reason: reason}
             )
             Process.send_after(self(), :connect, delay)
-            {:noreply, nil}
+            {:noreply, %{state | attempt: attempt}}
         end
     end
   end
 
-  def handle_info({:DOWN, _, :process, _pid, {:shutdown, :normal}}, _) do
-    {:noreply, nil}
+  def handle_info({:DOWN, _, :process, _pid, {:shutdown, :normal}}, state) do
+    {:noreply, %{state | conn: nil}}
   end
 
-  def handle_info({:DOWN, _, :process, _pid, {:shutdown, {:server_initiated_close, 200, _}}}, _) do
-    {:noreply, nil}
+  def handle_info({:DOWN, _, :process, _pid, {:shutdown, {:server_initiated_close, 200, _}}}, state) do
+    {:noreply, %{state | conn: nil}}
   end
 
-  def handle_info({:DOWN, _, :process, _pid, reason}, _state) do
-    conn_name = Process.get(:__hare_mq_connection_name__)
+  def handle_info({:DOWN, _, :process, _pid, reason}, state) do
     Logger.error("[connection] Connection lost: #{inspect(reason)}. Reconnecting...")
-    # Reset backoff — first reconnect after a real disconnect should be prompt.
-    Process.put(:__hare_mq_connect_attempt__, 0)
     :telemetry.execute(
       [:hare_mq, :connection, :disconnected],
       %{system_time: System.system_time()},
-      %{connection_name: conn_name, reason: reason}
+      %{connection_name: state.name, reason: reason}
     )
+    # Reset attempt counter — first reconnect after a real disconnect should be prompt.
     Process.send_after(self(), :connect, reconnect_interval())
-    {:noreply, nil}
+    {:noreply, %{state | conn: nil, attempt: 0}}
   end
 
-  def handle_info(reason, _state) do
+  def handle_info(reason, state) do
     # Stop GenServer. Will be restarted by Supervisor.
-    {:stop, {:connection_lost, reason}, nil}
+    {:stop, {:connection_lost, reason}, state}
   end
 end
