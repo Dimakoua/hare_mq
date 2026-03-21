@@ -4,9 +4,32 @@ defmodule HareMq.Publisher do
   end
 
   @moduledoc """
-  GenServer module implementing a RabbitMQ message publisher.
+  Macro that injects a full RabbitMQ publisher GenServer into the calling module.
 
-  This module provides a behavior for publishing messages to RabbitMQ, including connecting to RabbitMQ, declaring exchanges, and sending messages.
+  ## Usage
+
+      defmodule MyApp.Producer do
+        use HareMq.Publisher,
+          routing_key: "my_key",   # required
+          exchange: "my_exchange"  # optional; nil publishes to the default exchange
+      end
+
+  ## Options
+
+  | Option | Required | Description |
+  |---|---|---|
+  | `routing_key` | yes | AMQP routing key |
+  | `exchange` | no | Exchange name. Declared durable on connect. |
+  | `unique` | no | Deduplication config: `[period: ttl_ms_or_infinity, keys: [:field]]` |
+  | `connection_name` | no | Named connection for multi-vhost use (default `{:global, HareMq.Connection}`) |
+  | `dedup_cache_name` | no | Named dedup cache (default `{:global, HareMq.DedupCache}`) |
+
+  ## Return values of `publish_message/1`
+
+  - `:ok` — message accepted by the broker.
+  - `{:error, :not_connected}` — no active channel yet.
+  - `{:error, {:encoding_failed, reason}}` — map could not be JSON-encoded.
+  - `{:duplicate, :not_published}` — deduplication prevented publishing.
   """
 
   defmacro __using__(options) do

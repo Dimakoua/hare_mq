@@ -1,6 +1,293 @@
 # HareMq
 
-HareMq is an Elixir library for interacting with AMQP (Advanced Message Queuing Protocol) systems, such as RabbitMQ. It provides modules for configuring connections, declaring queues and exchanges, publishing messages, and handling message retries.
+HareMq is an Elixir library for interacting with AMQP systems such as RabbitMQ. It provides supervised connection management, queue/exchange topology declaration, message publishing with deduplication, message consumption with automatic retry/dead-letter routing, and dynamic consumer scaling with an optional auto-scaler.
+
+## Watch video tutorial
+
+### Introduction
+Learn the basics of HareMq and how it can simplify your interaction with AMQP systems.
+
+[![Watch the video](https://img.youtube.com/vi/cohYx1E3d0s/hqdefault.jpg)](https://youtu.be/cohYx1E3d0s)
+
+### Tutorial
+Dive deeper into the features and capabilities of HareMq with our step-by-step tutorial.
+
+[![Watch the video](https://img.youtube.com/vi/iajN-1gCr34/hqdefault.jpg)](https://youtu.be/iajN-1gCr34)
+
+## Getting Started
+
+Add the dependency to your `mix.exs`:
+
+```elixir
+defp deps do
+  [
+    {:hare_mq, "~> 1.3.0"}
+  ]
+end
+```
+
+HareMq starts `HareMq.Connection` and `HareMq.DedupCache` as part of its own OTP application. You do **not** need to start them manually — just add modules that `use HareMq.Publisher` or `use HareMq.Consumer` to your application's supervision tree.
+
+---
+
+## Configuration
+
+```elixir
+# config/config.exs
+config :hare_mq, :amqp,
+  url: "amqp://guest:guest@localhost:5672"
+
+# Optional overrides for retry/delay behaviour
+config :hare_mq, :configuration,
+  delay_in_ms: 10_000,       # delay before first retry (default 10 000)
+  retry_limit: 15,            # retries before dead-lettering (default 15)
+  message_ttl: 31_449_600,    # queue message TTL in ms (default ~1 year)
+  reconnect_interval_in_ms: 10_000  # AMQP reconnect delay (default 10 000)
+
+# Optional auto-scaler defaults
+config :hare_mq, :auto_scaler,
+  min_consumers: 1,
+  max_consumers: 20,
+  messages_per_consumer: 10,
+  check_interval: 5_000
+```
+
+> **Note:** `url` takes precedence over `host`. Credentials embedded in the URL (`amqp://user:pass@host`) will appear in crash reports. Use environment variables to keep them out of source control:
+>
+> ```elixir
+> config :hare_mq, :amqp,
+>   url: System.get_env("RABBITMQ_URL", "amqp://guest:guest@localhost")
+> ```
+
+All configuration values are read at runtime with `Application.get_env`, so changes via `Application.put_env` in tests take effect immediately without recompilation.
+
+---
+
+## Publisher
+
+```elixir
+defmodule MyApp.MessageProducer do
+  use HareMq.Publisher,
+    routing_key: "my_routing_key",
+    exchange: "my_exchange"
+
+  def send_message(message) do
+    publish_message(message)
+  end
+end
+```
+
+`publish_message/1` accepts a `map` (JSON-encoded automatically) or a `binary`. It returns `:ok`, `{:error, :not_connected}`, or `{:error, {:encoding_failed, reason}}`.
+
+The publisher declares its exchange as durable on connect, so messages are never silently dropped even if consumers have not started yet.
+
+### Deduplication
+
+```elixir
+defmodule MyApp.MessageProducer do
+  use HareMq.Publisher,
+    routing_key: "my_routing_key",
+    exchange: "my_exchange",
+    unique: [
+      period: :infinity,   # TTL in ms, or :infinity
+      keys: [:project_id]  # deduplicate by these map keys; omit for full-message hashing
+    ]
+
+  def send_message(message) do
+    publish_message(message)  # returns {:duplicate, :not_published} if already seen
+  end
+end
+```
+
+### Multi-vhost / named connections
+
+```elixir
+defmodule MyApp.ProducerVhostA do
+  use HareMq.Publisher,
+    routing_key: "rk",
+    exchange: "ex",
+    connection_name: {:global, :conn_vhost_a}
+end
+```
+
+---
+
+## Consumer
+
+```elixir
+defmodule MyApp.MessageConsumer do
+  use HareMq.Consumer,
+    queue_name: "my_queue",
+    routing_key: "my_routing_key",
+    exchange: "my_exchange"
+
+  def consume(message) do
+    IO.puts("Received: #{inspect(message)}")
+    :ok  # return :ok | {:ok, any()} to ack, :error | {:error, any()} to retry
+  end
+end
+```
+
+Options for `use HareMq.Consumer`:
+
+| Option | Default | Description |
+|---|---|---|
+| `queue_name` | **required** | Queue to consume from |
+| `routing_key` | `queue_name` | AMQP routing key |
+| `exchange` | `nil` | Exchange to bind to |
+| `prefetch_count` | `1` | AMQP QoS prefetch count |
+| `retry_limit` | config / `15` | Max retries before dead-lettering |
+| `delay_in_ms` | config / `10_000` | Delay before retry |
+| `delay_cascade_in_ms` | `[]` | List of per-retry delays, e.g. `[1_000, 5_000, 30_000]` |
+| `connection_name` | `{:global, HareMq.Connection}` | Named connection for multi-vhost use |
+
+---
+
+## Dynamic Consumer
+
+Starts a pool of `consumer_count` worker processes managed by a per-module `DynamicSupervisor`.
+
+```elixir
+defmodule MyApp.MessageConsumer do
+  use HareMq.DynamicConsumer,
+    queue_name: "my_queue",
+    routing_key: "my_routing_key",
+    exchange: "my_exchange",
+    consumer_count: 10
+
+  def consume(message) do
+    IO.puts("Received: #{inspect(message)}")
+    :ok
+  end
+end
+```
+
+### Auto-scaling
+
+```elixir
+defmodule MyApp.MessageConsumer do
+  use HareMq.DynamicConsumer,
+    queue_name: "my_queue",
+    routing_key: "my_routing_key",
+    exchange: "my_exchange",
+    consumer_count: 2,
+    auto_scaling: [
+      min_consumers: 1,
+      max_consumers: 20,
+      messages_per_consumer: 100,  # scale up 1 consumer per N queued messages
+      check_interval: 5_000        # check every 5 s
+    ]
+
+  def consume(message) do
+    :ok
+  end
+end
+```
+
+Multiple `DynamicConsumer` modules can coexist in the same node — each gets its own named supervisor (`MyApp.MessageConsumer.Supervisor`) and its own auto-scaler (`MyApp.MessageConsumer.AutoScaler`).
+
+---
+
+## Usage in Application
+
+```elixir
+defmodule MyApp.Application do
+  use Application
+
+  def start(_type, _args) do
+    children = [
+      MyApp.MessageConsumer,
+      MyApp.MessageProducer
+    ]
+
+    opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+end
+```
+
+---
+
+## Multi-vhost / Multiple Connections
+
+Start additional named `Connection` (and optionally `DedupCache`) instances in your supervision tree, then reference them by name:
+
+```elixir
+children = [
+  {HareMq.Connection, name: {:global, :conn_vhost_a}},
+  {HareMq.Connection, name: {:global, :conn_vhost_b}},
+  MyApp.ConsumerA,   # uses connection_name: {:global, :conn_vhost_a}
+  MyApp.ConsumerB,   # uses connection_name: {:global, :conn_vhost_b}
+]
+```
+
+---
+
+## Modules
+
+### HareMq.Connection
+
+Manages the AMQP TCP connection. Reconnects automatically on failure or broker-initiated close. Accepts an optional `name:` keyword in `start_link/1` for multi-connection deployments.
+
+### HareMq.Publisher
+
+`use HareMq.Publisher, routing_key: ..., exchange: ...` injects a GenServer that connects to RabbitMQ, declares its exchange on connect, and exposes `publish_message/1`. Supports optional deduplication via `unique:` and a custom `connection_name:` / `dedup_cache_name:`.
+
+### HareMq.Consumer
+
+`use HareMq.Consumer, queue_name: ..., exchange: ...` injects a single-worker GenServer consumer with automatic retry and dead-letter routing.
+
+### HareMq.DynamicConsumer
+
+`use HareMq.DynamicConsumer, queue_name: ..., consumer_count: N` starts a pool of N workers under a per-module `HareMq.DynamicSupervisor`. Supports auto-scaling via `auto_scaling: [...]`.
+
+### HareMq.DynamicSupervisor
+
+Manages worker processes for a `DynamicConsumer` module. Each module gets a uniquely named supervisor so multiple modules can coexist. Exposes `add_consumer/2`, `remove_consumer/2`, `list_consumers/1`, and `supervisor_name/1`.
+
+### HareMq.AutoScaler
+
+Periodically samples queue depth and scales consumer count between `min_consumers` and `max_consumers`. Registered globally as `:"<ModuleName>.AutoScaler"` — unique per consumer module.
+
+### HareMq.DedupCache
+
+ETS-backed deduplication cache. `add/3` is synchronous (prevents race conditions with `is_dup?/2`). `is_dup?/2` reads directly from ETS without going through the GenServer. Expires entries via a periodic `:ets.select_delete` sweep. Accepts an optional `name:` for multi-tenant isolation.
+
+### HareMq.RetryPublisher
+
+Handles retry routing: publishes to delay queues (with optional cascade of per-retry delays) and moves messages to the dead-letter queue after `retry_limit` attempts. Short-circuits immediately when the dead queue is empty during `republish_dead_messages/2`.
+
+### HareMq.Configuration
+
+Struct + builder for per-queue runtime configuration. All default values (`delay_in_ms`, `retry_limit`, `message_ttl`) are read from `Application.get_env` at call time. Accepts keys in any order.
+
+### HareMq.Exchange / HareMq.Queue
+
+Low-level helpers for declaring and binding exchanges and queues. Exchange type defaults to `:direct` but can be overridden via `config :hare_mq, :exchange_type, :topic`.
+
+---
+
+## Contributing and Testing
+
+We welcome contributions. Please write tests for any new features or bug fixes using [ExUnit](https://hexdocs.pm/ex_unit/ExUnit.html). Test files live under `test/` and `lib/` (integration tests alongside source).
+
+### Running Tests
+
+```bash
+mix test
+```
+
+Integration tests require a running RabbitMQ instance. Set `RABBITMQ_URL` (or `RABBITMQ_HOST`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`) to point at your broker:
+
+```bash
+RABBITMQ_URL=amqp://guest:guest@localhost mix test
+```
+
+## Rate Us
+
+If you enjoy using HareMq, please consider giving us a star on GitHub! Your feedback and support are highly appreciated.
+[GitHub](https://github.com/Dimakoua/hare_mq)
+
 
 ## Watch video tutorial
 

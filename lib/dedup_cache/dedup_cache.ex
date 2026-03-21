@@ -1,29 +1,35 @@
 defmodule HareMq.DedupCache do
   @moduledoc """
-  A GenServer-based cache for message deduplication in a RabbitMQ system.
+  ETS-backed deduplication cache for RabbitMQ message processing.
 
-  ## Overview
+  ## Storage
 
-  The `HareMq.DedupCache` module provides functionality to manage a cache of messages to prevent
-  the processing of duplicate messages. It uses a GenServer to store messages along with their
-  expiration timestamps and supports deduplication based on specific keys within a message.
+  Each cache instance owns a named ETS table (`:named_table, :public, :set`).
+  The table name is derived from the registered server name so lookups can go
+  directly to ETS without passing through the GenServer message queue.
 
-  ## Features
+  ## Writes vs reads
 
-  - **Deduplication:** Checks if a message is a duplicate based on its content and optional deduplication keys.
-  - **TTL Management:** Allows setting a time-to-live (TTL) for cached messages. Messages can be set to expire after a certain time or remain in the cache indefinitely.
-  - **Automatic Cache Clearing:** Periodically clears expired messages from the cache.
+  - `add/3` (and `add/4`) — synchronous `GenServer.call`. This guarantees that
+    a subsequent `is_dup?` call on any process will see the entry.
+  - `is_dup?/2` (and `is_dup?/3`) — reads ETS directly, completely bypassing
+    the GenServer. Concurrent read throughput is not limited by a single process.
 
-  ## Functions
+  ## Expiry
 
-  - `is_dup?/2`: Checks if a given message is a duplicate based on the cache.
-  - `add/3`: Adds a message to the cache with a specified TTL.
+  A 1-second timer runs `handle_info(:clear_cache)` which calls
+  `:ets.select_delete/2` to remove all rows whose `expired_at` timestamp is in
+  the past. This is a C-level operation with no Elixir-side allocation,
+  keeping the GenServer responsive regardless of cache size.
 
-  ## Usage
+  ## Named instances
 
-  This module is intended for use in systems where message deduplication is required, such as in RabbitMQ consumers
-  where the same message might be delivered multiple times. The cache ensures that duplicate messages are identified
-  and not processed multiple times.
+  Pass `name:` to `start_link/1` to run isolated caches side-by-side:
+
+      {HareMq.DedupCache, name: {:global, :dedup_cache_tenant_a}}
+
+  Then pass the same name as the third/fourth argument to `is_dup?/3` and
+  `add/4`. Publishers accept a `dedup_cache_name:` option.
   """
 
   use GenServer

@@ -1,59 +1,34 @@
 defmodule HareMq.Configuration do
   @moduledoc """
-  Configuration module for HareMq.
+  Runtime configuration struct and builder for HareMq queue consumers.
 
-  This module provides functions and structures for configuring various components of HareMq, such as queues, exchanges, and consumers. It allows you to specify parameters related to message handling, queue management, and connection settings.
+  ## Struct fields
 
-  ## Structure
+  | Field | Description |
+  |---|---|
+  | `:channel` | Open `AMQP.Channel` for this consumer |
+  | `:consume_fn` | Message handler — `(payload :: binary() -> :ok \| :error)` |
+  | `:queue_name` | Main queue name |
+  | `:delay_queue_name` | Derived delay queue (`queue_name <> ".delay"`) |
+  | `:dead_queue_name` | Derived dead-letter queue (`queue_name <> ".dead"`) |
+  | `:exchange` | AMQP exchange |
+  | `:routing_key` | Routing key |
+  | `:delay_in_ms` | Delay before first retry (runtime config or `10_000`) |
+  | `:delay_cascade_in_ms` | List of per-retry delays, e.g. `[1_000, 5_000, 30_000]` |
+  | `:message_ttl` | Queue-level message TTL in ms (runtime config or `31_449_600`) |
+  | `:retry_limit` | Max retries before dead-lettering (runtime config or `15`) |
+  | `:durable` | Always `true` |
+  | `:consumer_tag` | Set after `Basic.consume/2` via `set_consumer_tag/2` |
+  | `:state` | `:running` or `:cancelled` |
 
-  The primary structure used in this module is `Configuration`, which holds the configuration details for a queue.
+  ## Default resolution
 
-  ## Fields
+  `delay_in_ms`, `retry_limit`, and `message_ttl` are resolved at call time via
+  `Application.get_env(:hare_mq, :configuration)`, so runtime config changes
+  (including `Application.put_env` in tests) take effect immediately.
 
-  - `:channel` - The AMQP channel to use.
-  - `:consume_fn` - The function to handle messages from the queue.
-  - `:queue_name` - The name of the queue.
-  - `:delay_queue_name` - The name of the delay queue.
-  - `:dead_queue_name` - The name of the dead letter queue.
-  - `:delay_cascade_in_ms` - A list of delays in milliseconds for cascading retries.
-  - `:exchange` - The AMQP exchange.
-  - `:routing_key` - The routing key for messages.
-  - `:delay_in_ms` - The default delay in milliseconds before a message is retried.
-  - `:message_ttl` - The time-to-live for a message in milliseconds.
-  - `:retry_limit` - The number of retry attempts before a message is sent to the dead letter queue.
-  - `:durable` - Whether the queue is durable or not.
-  - `:consumer_tag` - An optional tag to identify the consumer.
-  - `:state` - The current state of the configuration. Default is `:running`.
-
-  ## Default Values
-
-  The following defaults are set using application configuration or fallback values:
-
-  - `@delay_in_ms`: `10_000`
-  - `@retry_limit`: `15`
-  - `@message_ttl`: `31_449_600`
-
-  ## Examples
-
-  Creating a queue configuration:
-
-  ```elixir
-  config = %Configuration{
-    channel: my_channel,
-    consume_fn: &my_consume_fn/1,
-    queue_name: "my_queue",
-    delay_queue_name: "my_queue.delay",
-    dead_queue_name: "my_queue.dead",
-    exchange: "my_exchange",
-    routing_key: "my_routing_key",
-    delay_in_ms: 10_000,
-    delay_cascade_in_ms: [1000, 5000, 10000],
-    message_ttl: 31_449_600,
-    retry_limit: 15,
-    durable: true,
-    consumer_tag: nil,
-    state: :running
-  }
+  Passing `0` for `delay_in_ms` or `retry_limit` is honoured — the `||`
+  operator is not used for nil-checks.
   """
 
   alias __MODULE__

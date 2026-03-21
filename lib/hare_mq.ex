@@ -187,6 +187,18 @@ defmodule HareMq do
   use Application
   require Logger
 
+  @doc """
+  Starts the HareMq OTP application.
+
+  Brings up two supervised children:
+  - `HareMq.Connection` — manages the default AMQP connection.
+  - `HareMq.DedupCache` — ETS-backed deduplication cache used by publishers with `unique:` set.
+
+  Both are started under a `:one_for_one` supervisor.
+  If you need additional connections (e.g. multiple vhosts) start named
+  `HareMq.Connection` instances separately in your own supervision tree.
+  """
+
   def start(_type, _args) do
     children = [
       HareMq.Connection,
