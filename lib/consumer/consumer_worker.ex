@@ -225,7 +225,7 @@ defmodule HareMq.Worker.Consumer do
           %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
           fn ->
             r = state.consume_fn.(message)
-            {r, %{result: consume_result_status(r)}}
+            {r, %{result: consume_result_status(r), queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key}}
           end
         )
 
