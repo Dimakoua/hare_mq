@@ -20,7 +20,7 @@ defmodule HareMq.Test.RabbitMQManagement do
 
   @doc "Returns the AMQP URL to use in integration test setups."
   def amqp_url do
-    System.get_env("RABBITMQ_URL", "amqp://guest:guest@localhost")
+    System.get_env("RABBITMQ_URL", "amqp://guest:guest@rabbitmq")
   end
 
   # ---------------------------------------------------------------------------
@@ -117,21 +117,41 @@ defmodule HareMq.Test.RabbitMQManagement do
 
   defp get(path), do: request(:get, path)
 
+  # Uses curl instead of :httpc to avoid OTP 26 inets :http_util.timestamp/0 breakage.
   defp request(method, path) do
-    Application.ensure_all_started(:inets)
-    url = String.to_charlist("#{base_url()}/api#{path}")
-    headers = [{'authorization', String.to_charlist(auth_header())}]
+    url = "#{base_url()}/api#{path}"
+    user = System.get_env("RABBITMQ_USER", "guest")
+    pass = System.get_env("RABBITMQ_PASSWORD", "guest")
 
-    http_opts = [{:timeout, 5_000}]
-    req = if method == :get, do: {url, headers}, else: {url, headers, 'application/json', ''}
+    method_args =
+      case method do
+        :get -> []
+        :delete -> ["-X", "DELETE"]
+        :put -> ["-X", "PUT", "-H", "Content-Type: application/json", "-d", ""]
+        :post -> ["-X", "POST", "-H", "Content-Type: application/json", "-d", ""]
+      end
 
-    case :httpc.request(method, req, http_opts, []) do
-      {:ok, {{_, 200, _}, _, body}} -> {:ok, Jason.decode!(List.to_string(body))}
-      {:ok, {{_, 201, _}, _, body}} -> {:ok, Jason.decode!(List.to_string(body))}
-      {:ok, {{_, 204, _}, _, _}} -> {:ok, :no_content}
-      {:ok, {{_, 404, _}, _, _}} -> {:error, :not_found}
-      {:ok, {{_, status, _}, _, body}} -> {:error, {status, List.to_string(body)}}
-      {:error, reason} -> {:error, reason}
+    args = ["-s", "--max-time", "5", "-u", "#{user}:#{pass}", "-w", "\n%{http_code}"] ++ method_args ++ [url]
+
+    case System.cmd("curl", args, stderr_to_stdout: false) do
+      {output, 0} -> parse_curl_response(output)
+      {_, code} -> {:error, {:curl_failed, code}}
+    end
+  end
+
+  defp parse_curl_response(output) do
+    # curl appends \n{http_code} after the body; split on the last newline
+    {status_str, body_parts} = List.pop_at(String.split(output, "\n"), -1)
+
+    body = Enum.join(body_parts, "\n")
+
+    case Integer.parse(String.trim(status_str)) do
+      {200, _} -> {:ok, Jason.decode!(body)}
+      {201, _} -> {:ok, Jason.decode!(body)}
+      {204, _} -> {:ok, :no_content}
+      {404, _} -> {:error, :not_found}
+      {status, _} -> {:error, {status, body}}
+      :error -> {:error, {:bad_response, output}}
     end
   end
 
@@ -155,12 +175,9 @@ defmodule HareMq.Test.RabbitMQManagement do
     end
   end
 
-  defp base_url, do: System.get_env("RABBITMQ_MGMT_URL", "http://localhost:15672")
-
-  defp auth_header do
-    user = System.get_env("RABBITMQ_USER", "guest")
-    pass = System.get_env("RABBITMQ_PASSWORD", "guest")
-    "Basic " <> Base.encode64("#{user}:#{pass}")
+  defp base_url do
+    host = System.get_env("RABBITMQ_HOST", "rabbitmq")
+    System.get_env("RABBITMQ_MGMT_URL", "http://#{host}:15672")
   end
 
   defp encode_vhost("/"), do: "%2F"
