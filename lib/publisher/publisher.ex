@@ -184,7 +184,8 @@ defmodule HareMq.Publisher do
                     @config[:exchange],
                     @config[:routing_key],
                     encoded_message,
-                    persistent: true
+                    persistent: true,
+                    content_type: "application/json"
                   )
 
                 :telemetry.execute(

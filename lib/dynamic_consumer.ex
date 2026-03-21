@@ -80,16 +80,16 @@ defmodule HareMq.DynamicConsumer do
         HareMq.DynamicSupervisor.start_link(config: @config, consume: &consume/1)
       end
 
-      def republish_dead_messages(count), do: traverse_consumers(count, 1)
+      def republish_dead_messages(count) do
+        supervisor = HareMq.DynamicSupervisor.supervisor_name(__MODULE__)
 
-      defp traverse_consumers(count, consumer_number) do
-        if consumer_number > @config[:consumer_count] do
-          {:error, :process_not_alive}
-        else
-          case :global.whereis_name("#{@config[:consumer_worker]}.W#{consumer_number}") do
-            pid when is_pid(pid) -> HareMq.Worker.Consumer.republish_dead_messages(pid, count)
-            _ -> traverse_consumers(count, consumer_number + 1)
-          end
+        # Ask the supervisor for all live children in one call
+        case DynamicSupervisor.which_children(supervisor) do
+          [{_, pid, :worker, _} | _] when is_pid(pid) ->
+            HareMq.Worker.Consumer.republish_dead_messages(pid, count)
+
+          _ ->
+            {:error, :process_not_alive}
         end
       end
 

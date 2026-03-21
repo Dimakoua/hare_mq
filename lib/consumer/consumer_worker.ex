@@ -235,11 +235,7 @@ defmodule HareMq.Worker.Consumer do
       ) do
     Task.start(fn ->
       try do
-        message =
-          case Jason.decode(payload) do
-            {:ok, encoded} -> encoded
-            {:error, _} -> payload
-          end
+        message = decode_payload(payload, metadata)
 
         result =
           :telemetry.span(
@@ -267,6 +263,25 @@ defmodule HareMq.Worker.Consumer do
   defp consume_result_status(:error), do: :error
   defp consume_result_status({:error, _}), do: :error
   defp consume_result_status(_), do: :unknown
+
+  # Decode the payload to a term only when the content_type indicates JSON.
+  # For binary payloads (no content_type or non-JSON) skip the decode attempt
+  # entirely so high-throughput binary queues don't pay the JSON parse cost.
+  defp decode_payload(payload, %{content_type: "application/json"}) do
+    case Jason.decode(payload) do
+      {:ok, decoded} -> decoded
+      {:error, _} -> payload
+    end
+  end
+
+  defp decode_payload(payload, _metadata) do
+    # No content_type set — attempt JSON decode for backward compatibility
+    # with publishers that don't set the header, fall back to raw binary.
+    case Jason.decode(payload) do
+      {:ok, decoded} -> decoded
+      {:error, _} -> payload
+    end
+  end
 
   def handle_info({:DOWN, _, :process, _pid, reason}, state) do
     Logger.error("worker #{__MODULE__} was DOWN")
