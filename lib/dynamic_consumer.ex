@@ -4,8 +4,42 @@ defmodule HareMq.DynamicConsumer do
   end
 
   @moduledoc """
-  This module provides a dynamic supervisor for managing worker processes in the HareMq application.
-  It is designed to start a configurable number of consumer processes to handle message consumption.
+  Macro that injects a horizontally-scalable RabbitMQ consumer pool.
+
+  Starts a `HareMq.DynamicSupervisor` that manages a configurable number of
+  worker processes. Workers can be scaled manually or automatically via
+  `HareMq.AutoScaler`.
+
+  ## Usage
+
+      defmodule MyApp.Workers do
+        use HareMq.DynamicConsumer,
+          queue_name: "tasks",
+          consumer_count: 4
+
+        def consume(message) do
+          IO.inspect(message)
+          :ok
+        end
+      end
+
+  ## Options
+
+  | Option | Required | Description |
+  |---|---|---|
+  | `queue_name` | yes | Main queue name |
+  | `routing_key` | no | Defaults to `queue_name` |
+  | `exchange` | no | AMQP exchange |
+  | `prefetch_count` | no | QoS prefetch per worker (default `1`) |
+  | `consumer_count` | no | Number of workers to start (default `1`) |
+  | `auto_scaling` | no | `HareMq.AutoScalerConfiguration` — enables auto-scaling |
+  | `delay_cascade_in_ms` | no | List of per-attempt delays, e.g. `[1_000, 5_000]` |
+  | `connection_name` | no | Named connection for multi-vhost use (default `{:global, HareMq.Connection}`) |
+  | `stream` | no | `true` to consume a stream queue (default `false`) |
+  | `stream_offset` | no | Stream start position: `"first"`, `"last"`, `"next"` (default), integer offset, or `%DateTime{}` |
+
+  When `stream: true` each worker declares an `x-queue-type: stream` queue,
+  skips delay/dead-letter setup, and always acks messages (no retry loop).
   """
 
   defmacro __using__(options) do

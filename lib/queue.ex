@@ -2,21 +2,20 @@ defmodule HareMq.Queue do
   alias HareMq.Configuration
 
   @moduledoc """
-  Module providing functions for managing RabbitMQ queues.
+  Functions for declaring and binding RabbitMQ queues.
 
-  This module includes functions for declaring queues and binding them to exchanges.
+  Supports three queue families:
+
+  - **Standard queues** — `declare_queue/1`: durable classic or quorum queue.
+  - **Delay / dead-letter queues** — `declare_delay_queue/1` and
+    `declare_dead_queue/1`: used automatically by the retry pipeline.
+  - **Stream queues** — `declare_stream_queue/1`: persistent, append-only log
+    declared with `x-queue-type: stream`. No delay or dead-letter queues are
+    created for stream consumers.
   """
 
   @doc """
-  Bind a queue to an exchange with the specified routing key.
-
-  ## Parameters
-
-  - `config`: A `%Configuration{}` struct containing queue configuration.
-
-  ## Examples
-
-      HareMq.Queue.bind(%Configuration{channel: channel, queue_name: "my_queue", exchange: "my_exchange", routing_key: "my_routing_key"})
+  Binds a queue to an exchange using the routing key in `config`.
   """
   def bind(%Configuration{} = config) do
     AMQP.Queue.bind(config.channel, config.queue_name, config.queue_name,
@@ -25,15 +24,7 @@ defmodule HareMq.Queue do
   end
 
   @doc """
-  Declare a durable RabbitMQ queue.
-
-  ## Parameters
-
-  - `config`: A `%Configuration{}` struct containing queue configuration.
-
-  ## Examples
-
-      HareMq.Queue.declare_queue(%Configuration{channel: channel, queue_name: "my_queue", durable: true})
+  Declares a durable RabbitMQ queue (classic or quorum).
   """
   def declare_queue(%Configuration{} = config) do
     AMQP.Queue.declare(
@@ -44,15 +35,12 @@ defmodule HareMq.Queue do
   end
 
   @doc """
-  Declare a durable RabbitMQ delay queue with specified options.
+  Declares the delay queue(s) used by the retry pipeline.
 
-  ## Parameters
-
-  - `config`: A `%Configuration{}` struct containing queue configuration.
-
-  ## Examples
-
-      HareMq.Queue.declare_delay_queue(%Configuration{channel: channel, delay_queue_name: "my_queue.delay", exchange: "my_exchange", routing_key: "my_routing_key", delay_in_ms: 5000})
+  When `delay_cascade_in_ms` is a non-empty list each delay value gets its own
+  named queue (`queue_name.delay.<ms>`) with a matching `x-message-ttl` and
+  dead-letter routing back to the main queue. Otherwise a single
+  `queue_name.delay` queue is created using `delay_in_ms`.
   """
   def declare_delay_queue(%Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = config)
       when is_list(delay_cascade_in_ms) do
@@ -89,15 +77,7 @@ defmodule HareMq.Queue do
   end
 
   @doc """
-  Declare a durable RabbitMQ dead letter queue with specified options.
-
-  ## Parameters
-
-  - `config`: A `%Configuration{}` struct containing queue configuration.
-
-  ## Examples
-
-      HareMq.Queue.declare_dead_queue(%Configuration{channel: channel, dead_queue_name: "my_queue.dead", message_ttl: 3600000})
+  Declares the dead-letter queue (`queue_name.dead`) with `x-message-ttl`.
   """
   def declare_dead_queue(%Configuration{} = config) do
     AMQP.Queue.declare(

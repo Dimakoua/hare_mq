@@ -140,6 +140,54 @@ Options for `use HareMq.Consumer`:
 | `delay_in_ms` | config / `10_000` | Delay before retry |
 | `delay_cascade_in_ms` | `[]` | List of per-retry delays, e.g. `[1_000, 5_000, 30_000]` |
 | `connection_name` | `{:global, HareMq.Connection}` | Named connection for multi-vhost use |
+| `stream` | `false` | `true` to consume a [RabbitMQ stream queue](#stream-consumer) |
+| `stream_offset` | `"next"` | Where to start reading — see [Stream Consumer](#stream-consumer) |
+
+---
+
+## Stream Consumer
+
+RabbitMQ [stream queues](https://www.rabbitmq.com/docs/streams) are persistent, append-only logs. Unlike classic queues, messages are never removed after consumption — every consumer maintains its own read offset, making streams ideal for event-sourcing, audit logs, and fan-out replay.
+
+### Enabling stream mode
+
+Set `stream: true` on either `HareMq.Consumer` or `HareMq.DynamicConsumer`:
+
+```elixir
+defmodule MyApp.EventLog do
+  use HareMq.Consumer,
+    queue_name: "domain.events",
+    stream: true,
+    stream_offset: "first"   # replay from the very beginning
+
+  def consume(message) do
+    IO.inspect(message, label: "event")
+    :ok
+  end
+end
+```
+
+### `stream_offset` values
+
+| Value | Behaviour |
+|---|---|
+| `"next"` | Only messages published **after** the consumer registers (default) |
+| `"first"` | Replay from the oldest retained message |
+| `"last"` | Start from the last stored chunk |
+| `42` | Resume from a specific numeric offset |
+| `%DateTime{}` | All messages published at or after the given UTC datetime |
+
+### Behaviour differences vs classic queues
+
+| | Classic queue | Stream queue |
+|---|---|---|
+| Queue type declared | classic / quorum | `x-queue-type: stream` |
+| Delay queue created | yes | no |
+| Dead-letter queue created | yes | no |
+| `consume_fn` returns `:error` | retried via delay queue | **acked** (stream is immutable) |
+| Multiple consumers | compete for messages | each gets a full copy at its own offset |
+
+> **Prerequisite:** stream queues require the `rabbitmq_stream` plugin to be enabled on your broker (`rabbitmq-plugins enable rabbitmq_stream`).
 
 ---
 
@@ -263,7 +311,7 @@ Struct + builder for per-queue runtime configuration. All default values (`delay
 
 ### HareMq.Exchange / HareMq.Queue
 
-Low-level helpers for declaring and binding exchanges and queues. Exchange type defaults to `:direct` but can be overridden via `config :hare_mq, :exchange_type, :topic`.
+Low-level helpers for declaring and binding exchanges and queues. Exchange type defaults to `:direct` but can be overridden via `config :hare_mq, :exchange_type, :topic`. `HareMq.Queue.declare_stream_queue/1` declares a durable `x-queue-type: stream` queue — called automatically when `stream: true` is set on a consumer.
 
 ---
 
