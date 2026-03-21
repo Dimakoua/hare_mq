@@ -16,6 +16,8 @@ defmodule HareMq.Publisher do
       @opts unquote(options)
       @behaviour HareMq.Publisher.Behaviour
       @before_compile unquote(__MODULE__)
+      @connection_name @opts[:connection_name] || {:global, HareMq.Connection}
+      @dedup_cache_name @opts[:dedup_cache_name] || {:global, HareMq.DedupCache}
 
       if(is_nil(@opts[:routing_key])) do
         raise "routing_key can not be empty"
@@ -53,7 +55,7 @@ defmodule HareMq.Publisher do
       end
 
       def handle_info(:connect, state) do
-        case HareMq.Connection.get_connection() do
+        case HareMq.Connection.get_connection(@connection_name) do
           {:ok, conn} ->
             # Get notifications when the connection goes down
             Process.monitor(conn.pid)
@@ -185,8 +187,8 @@ defmodule HareMq.Publisher do
         deduplication_keys = Keyword.get(unique, :keys, [])
 
         if(deduplication_ttl) do
-          unless(HareMq.DedupCache.is_dup?(message, deduplication_keys)) do
-            HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys)
+          unless(HareMq.DedupCache.is_dup?(message, deduplication_keys, @dedup_cache_name)) do
+            HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys, @dedup_cache_name)
             publish(message)
           else
             {:duplicate, :not_published}

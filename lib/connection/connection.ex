@@ -12,8 +12,9 @@ defmodule HareMq.Connection do
     do:
       (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, nil, name: {:global, __MODULE__})
+  def start_link(opts \\ []) do
+    name = Keyword.get(opts, :name, {:global, __MODULE__})
+    GenServer.start_link(__MODULE__, nil, name: name)
     |> HareMq.CodeFlow.successful_start()
   end
 
@@ -36,8 +37,8 @@ defmodule HareMq.Connection do
         {:error, :not_connected} -> IO.puts("Not connected!")
       end
   """
-  def get_connection do
-    case GenServer.whereis({:global, __MODULE__}) do
+  def get_connection(name \\ {:global, __MODULE__}) do
+    case GenServer.whereis(name) do
       nil ->
         {:error, :not_connected}
 
@@ -63,8 +64,8 @@ defmodule HareMq.Connection do
         {:error, :not_connected} -> IO.puts("Not connected!")
       end
   """
-  def close_connection do
-    case GenServer.call({:global, __MODULE__}, :close_connection) do
+  def close_connection(name \\ {:global, __MODULE__}) do
+    case GenServer.call(name, :close_connection) do
       nil -> {:error, :not_connected}
       %AMQP.Connection{} = conn -> {:ok, conn}
     end

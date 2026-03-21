@@ -28,8 +28,9 @@ defmodule HareMq.DedupCache do
 
   use GenServer
 
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: {:global, __MODULE__})
+  def start_link(opts \\ []) do
+    name = Keyword.get(opts, :name, {:global, __MODULE__})
+    GenServer.start_link(__MODULE__, opts, name: name)
     |> HareMq.CodeFlow.successful_start()
   end
 
@@ -39,11 +40,19 @@ defmodule HareMq.DedupCache do
   end
 
   def is_dup?(message, deduplication_keys \\ []) do
-    GenServer.call({:global, __MODULE__}, {:is_dup, message, deduplication_keys})
+    is_dup?(message, deduplication_keys, {:global, __MODULE__})
+  end
+
+  def is_dup?(message, deduplication_keys, cache_name) do
+    GenServer.call(cache_name, {:is_dup, message, deduplication_keys})
   end
 
   def add(message, deduplication_ttl, deduplication_keys \\ []) do
-    GenServer.call({:global, __MODULE__}, {:add, message, deduplication_ttl, deduplication_keys})
+    add(message, deduplication_ttl, deduplication_keys, {:global, __MODULE__})
+  end
+
+  def add(message, deduplication_ttl, deduplication_keys, cache_name) do
+    GenServer.call(cache_name, {:add, message, deduplication_ttl, deduplication_keys})
   end
 
   def handle_info(:clear_cache, state) do

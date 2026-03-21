@@ -28,7 +28,8 @@ defmodule HareMq.Consumer do
         delay_in_ms: @opts[:delay_in_ms],
         prefetch_count: @opts[:prefetch_count] || 1,
         delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
-        consumer_name: __MODULE__
+        consumer_name: __MODULE__,
+        connection_name: @opts[:connection_name] || {:global, HareMq.Connection}
       ]
 
       def child_spec(opts) do

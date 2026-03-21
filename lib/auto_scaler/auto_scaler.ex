@@ -8,8 +8,8 @@ defmodule HareMq.AutoScaler do
   """
   @timeout 30_000
 
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: {:global, __MODULE__})
+  def start_link(%HareMq.AutoScalerConfiguration{module_name: module_name} = opts) do
+    GenServer.start_link(__MODULE__, opts, name: {:global, :"#{module_name}.AutoScaler"})
   end
 
   @impl true

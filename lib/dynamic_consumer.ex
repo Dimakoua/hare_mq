@@ -26,7 +26,8 @@ defmodule HareMq.DynamicConsumer do
         auto_scaling: @opts[:auto_scaling] || nil,
         delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
         consumer_worker: HareMq.Worker.Consumer,
-        module_name: __MODULE__
+        module_name: __MODULE__,
+        connection_name: @opts[:connection_name] || {:global, HareMq.Connection}
       ]
 
       def child_spec(opts) do

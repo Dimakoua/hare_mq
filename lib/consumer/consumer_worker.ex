@@ -83,7 +83,7 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
-    case HareMq.Connection.get_connection() do
+    case HareMq.Connection.get_connection(config[:connection_name] || {:global, HareMq.Connection}) do
       {:ok, conn} ->
         # Get notifications when the connection goes down
         Process.monitor(conn.pid)
