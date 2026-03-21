@@ -66,22 +66,20 @@ defmodule HareMq.RetryPublisher do
          %Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = configuration,
          retry_count
        )
-       when is_list(delay_cascade_in_ms) do
+       when is_list(delay_cascade_in_ms) and delay_cascade_in_ms != [] do
     retry_options = [
       persistent: true,
       headers: [retry_count: retry_count + 1]
     ]
 
-    delay_cascade_in_ms = Enum.sort(delay_cascade_in_ms)
+    sorted = Enum.sort(delay_cascade_in_ms)
 
-    delay_queue_index =
-      if(retry_count < length(delay_cascade_in_ms)) do
-        retry_count
+    delay_in_ms =
+      if retry_count < length(sorted) do
+        Enum.at(sorted, retry_count)
       else
-        -1
+        List.last(sorted)
       end
-
-    delay_in_ms = Enum.at(delay_cascade_in_ms, delay_queue_index)
 
     AMQP.Basic.publish(
       configuration.channel,
