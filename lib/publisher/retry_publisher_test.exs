@@ -30,7 +30,7 @@ defmodule HareMq.RetryPublisherTest do
 
   describe "republish/3" do
     setup do
-      Connection.start_link(nil)
+      Connection.start_link([])
       TestPublisher.start_link()
       Process.sleep(300)
       # Verify the GenServer has a channel connected

@@ -16,7 +16,17 @@ defmodule HareMq.Queue do
 
   @doc """
   Binds a queue to an exchange using the routing key in `config`.
+
+  For stream queues the user-supplied `config.exchange` is used as the source
+  exchange. For classic queues the exchange is named after the queue itself
+  (`config.queue_name`), which is the dead-letter exchange declared alongside it.
   """
+  def bind(%Configuration{stream: true} = config) do
+    AMQP.Queue.bind(config.channel, config.queue_name, config.exchange,
+      routing_key: config.routing_key
+    )
+  end
+
   def bind(%Configuration{} = config) do
     AMQP.Queue.bind(config.channel, config.queue_name, config.queue_name,
       routing_key: config.routing_key
@@ -42,8 +52,7 @@ defmodule HareMq.Queue do
   dead-letter routing back to the main queue. Otherwise a single
   `queue_name.delay` queue is created using `delay_in_ms`.
   """
-  def declare_delay_queue(%Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = config)
-      when is_list(delay_cascade_in_ms) do
+  def declare_delay_queue(%Configuration{delay_cascade_in_ms: [_ | _] = delay_cascade_in_ms} = config) do
     delay_cascade_in_ms
     |> Enum.sort()
     |> Enum.each(fn delay_in_ms when is_integer(delay_in_ms) ->

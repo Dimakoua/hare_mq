@@ -1,6 +1,5 @@
 defmodule HareMq.DedupCacheTest do
   use HareMq.TestCase
-  alias HareMq.Connection
   alias HareMq.DedupCache
 
   setup do

@@ -8,6 +8,7 @@ defmodule HareMq.MixProject do
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      elixirc_paths: elixirc_paths(Mix.env()),
       test_paths: ["test", "lib"],
       package: [
         licenses: ["MIT"],
@@ -33,6 +34,9 @@ defmodule HareMq.MixProject do
       {HareMq, []}
     end
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do

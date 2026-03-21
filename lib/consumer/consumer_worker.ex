@@ -55,7 +55,14 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def declare_queues(%HareMq.Configuration{stream: true} = config) do
-    {:ok, _} = HareMq.Queue.declare_stream_queue(config)
+    if config.exchange do
+      :ok = HareMq.Exchange.declare(channel: config.channel, name: config.exchange, type: :topic)
+      {:ok, _} = HareMq.Queue.declare_stream_queue(config)
+      :ok = HareMq.Queue.bind(config)
+    else
+      {:ok, _} = HareMq.Queue.declare_stream_queue(config)
+    end
+
     :ok
   end
 

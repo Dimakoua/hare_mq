@@ -10,7 +10,7 @@ defmodule HareMq.ConnectionTest do
   end
 
   test "successfully connects and gets connection" do
-    {:ok, _pid} = Connection.start_link(nil)
+    {:ok, _pid} = Connection.start_link([])
     assert wait_until(fn -> {:ok, %AMQP.Connection{}} = Connection.get_connection() end)
   end
 
@@ -19,7 +19,7 @@ defmodule HareMq.ConnectionTest do
   end
 
   test "successfully closes the connection" do
-    {:ok, _pid} = Connection.start_link(nil)
+    {:ok, _pid} = Connection.start_link([])
 
     assert wait_until(fn -> {:ok, %AMQP.Connection{}} = Connection.get_connection() end)
 
@@ -31,7 +31,7 @@ defmodule HareMq.ConnectionTest do
   end
 
   test "fails to close connection when not connected" do
-    {:ok, _pid} = Connection.start_link(nil)
+    {:ok, _pid} = Connection.start_link([])
 
     assert wait_until(fn -> {:ok, %AMQP.Connection{}} = Connection.close_connection() end)
     assert wait_until(fn -> {:error, :not_connected} = Connection.close_connection() end)
