@@ -32,12 +32,14 @@ defmodule HareMq.Connection do
       (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
   def start_link(opts \\ []) do
+    opts = opts || []
     name = Keyword.get(opts, :name, {:global, __MODULE__})
-    GenServer.start_link(__MODULE__, nil, name: name)
+    GenServer.start_link(__MODULE__, name, name: name)
     |> HareMq.CodeFlow.successful_start()
   end
 
-  def init(_) do
+  def init(name) do
+    Process.put(:__hare_mq_connection_name__, name)
     send(self(), :connect)
     {:ok, nil}
   end
@@ -102,10 +104,16 @@ defmodule HareMq.Connection do
 
   def handle_info(:connect, _) do
     configs = Application.get_env(:hare_mq, :amqp)
+    conn_name = Process.get(:__hare_mq_connection_name__)
 
     case configs[:url] do
       nil ->
         Logger.error("[connection] Missing :amqp config. Retrying later...")
+        :telemetry.execute(
+          [:hare_mq, :connection, :reconnecting],
+          %{retry_delay_ms: reconnect_interval()},
+          %{connection_name: conn_name, reason: :missing_config}
+        )
         Process.send_after(self(), :connect, reconnect_interval())
         {:noreply, nil}
 
@@ -113,10 +121,20 @@ defmodule HareMq.Connection do
         case Connection.open(host) do
           {:ok, %AMQP.Connection{} = conn} ->
             Process.monitor(conn.pid)
+            :telemetry.execute(
+              [:hare_mq, :connection, :connected],
+              %{system_time: System.system_time()},
+              %{connection_name: conn_name, host: host}
+            )
             {:noreply, conn}
 
-          {:error, _} ->
+          {:error, reason} ->
             Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
+            :telemetry.execute(
+              [:hare_mq, :connection, :reconnecting],
+              %{retry_delay_ms: reconnect_interval()},
+              %{connection_name: conn_name, host: host, reason: reason}
+            )
             Process.send_after(self(), :connect, reconnect_interval())
             {:noreply, nil}
         end
@@ -132,7 +150,13 @@ defmodule HareMq.Connection do
   end
 
   def handle_info({:DOWN, _, :process, _pid, reason}, _state) do
+    conn_name = Process.get(:__hare_mq_connection_name__)
     Logger.error("[connection] Connection lost: #{inspect(reason)}. Reconnecting...")
+    :telemetry.execute(
+      [:hare_mq, :connection, :disconnected],
+      %{system_time: System.system_time()},
+      %{connection_name: conn_name, reason: reason}
+    )
     Process.send_after(self(), :connect, reconnect_interval())
     {:noreply, nil}
   end

@@ -92,6 +92,12 @@ defmodule HareMq.Publisher do
                   AMQP.Exchange.declare(chan, exchange, :topic, durable: true)
                 end
 
+                :telemetry.execute(
+                  [:hare_mq, :publisher, :connected],
+                  %{system_time: System.system_time()},
+                  %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+                )
+
                 {:noreply, chan}
 
               _ ->
@@ -149,18 +155,32 @@ defmodule HareMq.Publisher do
       defp publish(message) when is_map(message) do
         case get_channel() do
           {:error, :not_connected} ->
+            :telemetry.execute(
+              [:hare_mq, :publisher, :message, :not_connected],
+              %{system_time: System.system_time()},
+              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+            )
             {:error, :not_connected}
 
           {:ok, channel} ->
             case Jason.encode(message) do
               {:ok, encoded_message} ->
-                AMQP.Basic.publish(
-                  channel,
-                  @config[:exchange],
-                  @config[:routing_key],
-                  encoded_message,
-                  persistent: true
+                result =
+                  AMQP.Basic.publish(
+                    channel,
+                    @config[:exchange],
+                    @config[:routing_key],
+                    encoded_message,
+                    persistent: true
+                  )
+
+                :telemetry.execute(
+                  [:hare_mq, :publisher, :message, :published],
+                  %{system_time: System.system_time()},
+                  %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
                 )
+
+                result
 
               {:error, reason} ->
                 {:error, {:encoding_failed, reason}}
@@ -171,16 +191,30 @@ defmodule HareMq.Publisher do
       defp publish(message) when is_binary(message) do
         case get_channel() do
           {:error, :not_connected} ->
+            :telemetry.execute(
+              [:hare_mq, :publisher, :message, :not_connected],
+              %{system_time: System.system_time()},
+              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+            )
             {:error, :not_connected}
 
           {:ok, channel} ->
-            AMQP.Basic.publish(
-              channel,
-              @config[:exchange],
-              @config[:routing_key],
-              message,
-              persistent: true
+            result =
+              AMQP.Basic.publish(
+                channel,
+                @config[:exchange],
+                @config[:routing_key],
+                message,
+                persistent: true
+              )
+
+            :telemetry.execute(
+              [:hare_mq, :publisher, :message, :published],
+              %{system_time: System.system_time()},
+              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
             )
+
+            result
         end
       end
 

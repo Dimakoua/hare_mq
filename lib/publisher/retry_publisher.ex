@@ -51,6 +51,12 @@ defmodule HareMq.RetryPublisher do
     else
       Logger.debug("Sending message to a dead messages queue")
 
+      :telemetry.execute(
+        [:hare_mq, :retry_publisher, :message, :dead_lettered],
+        %{retry_count: retry_count, system_time: System.system_time()},
+        %{queue: configuration.queue_name, dead_queue: configuration.dead_queue_name}
+      )
+
       AMQP.Basic.publish(
         configuration.channel,
         "",
@@ -81,10 +87,18 @@ defmodule HareMq.RetryPublisher do
         List.last(sorted)
       end
 
+    delay_queue = "#{configuration.delay_queue_name}.#{delay_in_ms}"
+
+    :telemetry.execute(
+      [:hare_mq, :retry_publisher, :message, :retried],
+      %{retry_count: retry_count + 1, system_time: System.system_time()},
+      %{queue: configuration.queue_name, delay_queue: delay_queue}
+    )
+
     AMQP.Basic.publish(
       configuration.channel,
       "",
-      "#{configuration.delay_queue_name}.#{delay_in_ms}",
+      delay_queue,
       payload,
       retry_options
     )
@@ -95,6 +109,12 @@ defmodule HareMq.RetryPublisher do
       persistent: true,
       headers: [retry_count: retry_count + 1]
     ]
+
+    :telemetry.execute(
+      [:hare_mq, :retry_publisher, :message, :retried],
+      %{retry_count: retry_count + 1, system_time: System.system_time()},
+      %{queue: configuration.queue_name, delay_queue: configuration.delay_queue_name}
+    )
 
     AMQP.Basic.publish(
       configuration.channel,

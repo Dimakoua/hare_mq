@@ -156,6 +156,18 @@ defmodule HareMq.Worker.Consumer do
 
             {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name], nil, stream_consume_opts(queue_configuration))
 
+            :telemetry.execute(
+              [:hare_mq, :consumer, :connected],
+              %{system_time: System.system_time()},
+              %{
+                consumer: config[:consumer_name],
+                queue: config[:queue_name],
+                exchange: config[:exchange],
+                routing_key: config[:routing_key],
+                stream: config[:stream] || false
+              }
+            )
+
             {:noreply, HareMq.Configuration.set_consumer_tag(queue_configuration, consumer_tag)}
 
           _ ->
@@ -207,8 +219,17 @@ defmodule HareMq.Worker.Consumer do
           {:error, _} -> payload
         end
 
-      state.consume_fn.(message)
-      |> process_result(payload, state, tag, metadata)
+      result =
+        :telemetry.span(
+          [:hare_mq, :consumer, :message],
+          %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
+          fn ->
+            r = state.consume_fn.(message)
+            {r, %{result: consume_result_status(r)}}
+          end
+        )
+
+      process_result(result, payload, state, tag, metadata)
     rescue
       reason ->
         Logger.error(inspect(reason))
@@ -217,6 +238,12 @@ defmodule HareMq.Worker.Consumer do
 
     {:noreply, state}
   end
+
+  defp consume_result_status(:ok), do: :ok
+  defp consume_result_status({:ok, _}), do: :ok
+  defp consume_result_status(:error), do: :error
+  defp consume_result_status({:error, _}), do: :error
+  defp consume_result_status(_), do: :unknown
 
   def handle_info({:DOWN, _, :process, _pid, reason}, state) do
     Logger.error("worker #{__MODULE__} was DOWN")
