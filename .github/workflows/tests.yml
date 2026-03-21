@@ -13,6 +13,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+      RABBITMQ_HOST: localhost
+      RABBITMQ_URL: amqp://guest:guest@localhost
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
 
     services:
       rabbitmq:
@@ -57,16 +63,17 @@ jobs:
 
       - name: Wait for RabbitMQ
         run: |
-          until curl -sS http://localhost:15672/api/overview --user guest:guest | grep -q 'rabbitmq_version'; do
-            echo "Waiting for RabbitMQ..."
-            sleep 5
+          echo "Waiting for RabbitMQ management API..."
+          until curl -sf http://localhost:15672/api/overview --user guest:guest | grep -q 'rabbitmq_version'; do
+            echo "  management API not ready, retrying..."
+            sleep 3
           done
+          echo "Waiting for RabbitMQ AMQP port..."
+          until nc -z localhost 5672; do
+            echo "  AMQP port not ready, retrying..."
+            sleep 2
+          done
+          echo "RabbitMQ is ready."
 
       - name: Run tests
-        env:
-          MIX_ENV: test
-          RABBITMQ_HOST: localhost
-          RABBITMQ_URL: amqp://guest:guest@localhost
-          RABBITMQ_USER: guest
-          RABBITMQ_PASSWORD: guest
         run: mix test
