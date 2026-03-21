@@ -29,22 +29,24 @@ defmodule HareMq.DedupCache do
   use GenServer
 
   def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, {:global, __MODULE__})
-    GenServer.start_link(__MODULE__, opts, name: name)
+    server_name = Keyword.get(opts, :name, {:global, __MODULE__})
+    table_name = ets_table_name(server_name)
+    GenServer.start_link(__MODULE__, table_name, name: server_name)
     |> HareMq.CodeFlow.successful_start()
   end
 
-  def init(_opts) do
-    send(self(), :clear_cache)
-    {:ok, %{}}
+  def init(table_name) do
+    :ets.new(table_name, [:named_table, :public, :set, {:read_concurrency, true}])
+    schedule_clear()
+    {:ok, table_name}
   end
 
   def is_dup?(message, deduplication_keys \\ []) do
-    is_dup?(message, deduplication_keys, {:global, __MODULE__})
+    ets_is_dup?(__MODULE__, message, deduplication_keys)
   end
 
   def is_dup?(message, deduplication_keys, cache_name) do
-    GenServer.call(cache_name, {:is_dup, message, deduplication_keys})
+    ets_is_dup?(ets_table_name(cache_name), message, deduplication_keys)
   end
 
   def add(message, deduplication_ttl, deduplication_keys \\ []) do
@@ -55,63 +57,58 @@ defmodule HareMq.DedupCache do
     GenServer.call(cache_name, {:add, message, deduplication_ttl, deduplication_keys})
   end
 
-  def handle_info(:clear_cache, state) do
-    new_state =
-      state
-      |> Enum.filter(fn {_k, v} ->
-        v.expired_at > :os.system_time(:millisecond)
-      end)
-      |> Enum.into(%{})
-
-    Process.send_after(self(), :clear_cache, 1_000)
-
-    {:noreply, new_state}
+  def handle_info(:clear_cache, table) do
+    now = :os.system_time(:millisecond)
+    :ets.select_delete(table, [{{"$1", :"$2", :"$3"}, [{:"=<", :"$3", now}], [true]}])
+    schedule_clear()
+    {:noreply, table}
   end
 
-  def handle_call({:add, message, deduplication_ttl, deduplication_keys}, _from, state) do
+  def handle_call({:add, message, deduplication_ttl, deduplication_keys}, _from, table) do
     hash = generate_hash(message, deduplication_keys)
 
-    deduplication_ttl =
+    ttl_ms =
       case deduplication_ttl do
-        # 5 years
         :infinity -> 31_556_952_000 * 5
         _ -> deduplication_ttl
       end
 
-    entry =
-      %{}
-      |> Map.put(:message, message)
-      |> Map.put(:expired_at, :os.system_time(:millisecond) + deduplication_ttl)
-
-    new_state = Map.put(state, hash, entry)
-
-    {:reply, :ok, new_state}
+    expired_at = :os.system_time(:millisecond) + ttl_ms
+    :ets.insert(table, {hash, message, expired_at})
+    {:reply, :ok, table}
   end
 
-  def handle_call({:is_dup, message, deduplication_keys}, _from, state) do
+  defp ets_is_dup?(table, message, deduplication_keys) do
     hash = generate_hash(message, deduplication_keys)
+    now = :os.system_time(:millisecond)
 
-    is_dup =
-      case Map.get(state, hash) do
-        nil ->
-          false
+    case :ets.lookup(table, hash) do
+      [{^hash, cached_message, expired_at}] when expired_at > now ->
+        check_keys(message, cached_message, deduplication_keys)
 
-        %{message: message} = cached_message when is_map(message) ->
-          is_dub_by_keys =
-            Enum.all?(deduplication_keys, fn key ->
-              message[key] === cached_message.message[key]
-            end)
-
-          is_cached = cached_message.expired_at > :os.system_time(:millisecond)
-
-          is_dub_by_keys && is_cached
-
-        %{message: message} = cached_message when is_binary(message) ->
-          cached_message.expired_at > :os.system_time(:millisecond)
-      end
-
-    {:reply, is_dup, state}
+      _ ->
+        false
+    end
+  rescue
+    # Table doesn't exist (cache not started)
+    ArgumentError -> false
   end
+
+  defp check_keys(message, cached_message, deduplication_keys) when is_map(message) do
+    Enum.all?(deduplication_keys, fn key ->
+      message[key] === cached_message[key]
+    end)
+  end
+
+  defp check_keys(_message, _cached_message, _deduplication_keys), do: true
+
+  defp schedule_clear do
+    Process.send_after(self(), :clear_cache, 1_000)
+  end
+
+  defp ets_table_name({:global, name}), do: name
+  defp ets_table_name(name) when is_atom(name), do: name
+  defp ets_table_name(_), do: __MODULE__
 
   defp generate_hash(message, _deduplication_keys) when is_binary(message) do
     :crypto.hash(:md5, message) |> Base.encode16()
