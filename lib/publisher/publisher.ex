@@ -61,6 +61,12 @@ defmodule HareMq.Publisher do
             case AMQP.Channel.open(conn) do
               {:ok, chan} ->
                 Process.monitor(chan.pid)
+                exchange = @config[:exchange]
+
+                if exchange do
+                  AMQP.Exchange.declare(chan, exchange, :topic, durable: true)
+                end
+
                 {:noreply, chan}
 
               _ ->
