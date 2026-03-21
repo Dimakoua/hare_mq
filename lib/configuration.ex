@@ -58,10 +58,6 @@ defmodule HareMq.Configuration do
 
   alias __MODULE__
 
-  @delay_in_ms Application.compile_env(:hare_mq, :configuration)[:delay_in_ms] || 10_000
-  @retry_limit Application.compile_env(:hare_mq, :configuration)[:retry_limit] || 15
-  @message_ttl Application.compile_env(:hare_mq, :configuration)[:message_ttl] || 31_449_600
-
   defstruct [
     :channel,
     :consume_fn,
@@ -132,10 +128,10 @@ defmodule HareMq.Configuration do
       dead_queue_name: "#{name}.dead",
       exchange: exchange,
       routing_key: routing_key,
-      delay_in_ms: delay_in_ms || @delay_in_ms,
+      delay_in_ms: delay_in_ms || config_value(:delay_in_ms, 10_000),
       delay_cascade_in_ms: delay_cascade_in_ms || [],
-      message_ttl: @message_ttl,
-      retry_limit: retry_limit || @retry_limit,
+      message_ttl: config_value(:message_ttl, 31_449_600),
+      retry_limit: retry_limit || config_value(:retry_limit, 15),
       durable: true,
       consumer_tag: nil,
       state: :running
@@ -156,6 +152,9 @@ defmodule HareMq.Configuration do
 
       updated_config = set_consumer_tag(config, "consumer_1")
   """
+  defp config_value(key, default),
+    do: (Application.get_env(:hare_mq, :configuration) || [])[key] || default
+
   def set_consumer_tag(%Configuration{} = configuration, consumer_tag) do
     %Configuration{configuration | consumer_tag: consumer_tag}
   end

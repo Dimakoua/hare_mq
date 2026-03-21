@@ -3,9 +3,9 @@ defmodule HareMq.Worker.Consumer do
   require Logger
   use AMQP
 
-  @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
-                        :reconnect_interval_in_ms
-                      ] || 10_000
+  defp reconnect_interval,
+    do:
+      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
   def start_link([config: config, consume: _] = opts) do
     HareMq.GlobalNodeManager.wait_for_all_nodes_ready(config[:consumer_name])
@@ -114,14 +114,14 @@ defmodule HareMq.Worker.Consumer do
 
           _ ->
             Logger.error("[consumer_worker] Faile to open channel!")
-            Process.send_after(self(), {:connect, opts}, @reconnect_interval)
+            Process.send_after(self(), {:connect, opts}, reconnect_interval())
             {:noreply, state}
         end
 
       {:error, _} ->
         Logger.error("[consumer_worker] Failed to connect. Reconnecting later...")
         # Retry later
-        Process.send_after(self(), {:connect, opts}, @reconnect_interval)
+        Process.send_after(self(), {:connect, opts}, reconnect_interval())
         {:noreply, state}
     end
   end

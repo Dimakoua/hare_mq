@@ -8,8 +8,9 @@ defmodule HareMq.Connection do
   use AMQP
   require Logger
 
-  @reconnect_interval Application.compile_env(:hare_mq, :configuration)[:reconnect_interval_in_ms] ||
-                        10_000
+  defp reconnect_interval,
+    do:
+      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, nil, name: {:global, __MODULE__})
@@ -92,7 +93,7 @@ defmodule HareMq.Connection do
     case configs[:url] do
       nil ->
         Logger.error("[connection] Missing :amqp config. Retrying later...")
-        Process.send_after(self(), :connect, @reconnect_interval)
+        Process.send_after(self(), :connect, reconnect_interval())
         {:noreply, nil}
 
       host ->
@@ -103,7 +104,7 @@ defmodule HareMq.Connection do
 
           {:error, _} ->
             Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
-            Process.send_after(self(), :connect, @reconnect_interval)
+            Process.send_after(self(), :connect, reconnect_interval())
             {:noreply, nil}
         end
     end

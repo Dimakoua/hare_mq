@@ -45,14 +45,6 @@ defmodule HareMq.AutoScalerConfiguration do
     :consumer_opts
   ]
 
-  @default_check_interval Application.compile_env(:hare_mq, :auto_scaler)[:check_interval] ||
-                            5_000
-  @default_min_consumers Application.compile_env(:hare_mq, :auto_scaler)[:min_consumers] || 1
-  @default_max_consumers Application.compile_env(:hare_mq, :auto_scaler)[:max_consumers] || 20
-  @default_messages_per_consumer Application.compile_env(:hare_mq, :auto_scaler)[
-                                   :messages_per_consumer
-                                 ] || 10
-
   @doc """
   Get the configuration for the auto-scaler.
 
@@ -80,11 +72,14 @@ defmodule HareMq.AutoScalerConfiguration do
       consume: consume,
       initial_consumer_count: initial_consumer_count,
       consumer_opts: consumer_opts,
-      min_consumers: auto_scaling[:min_consumers] || @default_min_consumers,
-      max_consumers: auto_scaling[:max_consumers] || @default_max_consumers,
+      min_consumers: auto_scaling[:min_consumers] || auto_scaler_config(:min_consumers, 1),
+      max_consumers: auto_scaling[:max_consumers] || auto_scaler_config(:max_consumers, 20),
       messages_per_consumer:
-        auto_scaling[:messages_per_consumer] || @default_messages_per_consumer,
-      check_interval: auto_scaling[:check_interval] || @default_check_interval
+        auto_scaling[:messages_per_consumer] || auto_scaler_config(:messages_per_consumer, 10),
+      check_interval: auto_scaling[:check_interval] || auto_scaler_config(:check_interval, 5_000)
     }
   end
+
+  defp auto_scaler_config(key, default),
+    do: (Application.get_env(:hare_mq, :auto_scaler) || [])[key] || default
 end

@@ -14,9 +14,6 @@ defmodule HareMq.Publisher do
       require Logger
       use GenServer
       @opts unquote(options)
-      @reconnect_interval Application.compile_env(:hare_mq, :configuration)[
-                            :reconnect_interval_in_ms
-                          ] || 10_000
       @behaviour HareMq.Publisher.Behaviour
       @before_compile unquote(__MODULE__)
 
@@ -68,14 +65,14 @@ defmodule HareMq.Publisher do
 
               _ ->
                 Logger.error("[publisher] Faile to open channel!")
-                Process.send_after(self(), :connect, @reconnect_interval)
+                Process.send_after(self(), :connect, reconnect_interval())
                 {:noreply, state}
             end
 
           {:error, _} ->
             Logger.error("[publisher] Failed to connect. Reconnecting later...")
             # Retry later
-            Process.send_after(self(), :connect, @reconnect_interval)
+            Process.send_after(self(), :connect, reconnect_interval())
             {:noreply, nil}
         end
       end
@@ -108,6 +105,11 @@ defmodule HareMq.Publisher do
       end
 
       defp close_chan(_), do: :ok
+
+      defp reconnect_interval,
+        do:
+          (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] ||
+            10_000
     end
   end
 

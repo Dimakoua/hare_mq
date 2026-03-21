@@ -1,7 +1,5 @@
 defmodule HareMq.Exchange do
   alias HareMq.Configuration
-  @default_type Application.compile_env(:hare_mq, :exchange_type, :direct)
-
   @moduledoc """
   Module providing functions for managing RabbitMQ exchanges.
 
@@ -27,7 +25,8 @@ defmodule HareMq.Exchange do
   end
 
   def declare(channel: channel, name: name) do
-    AMQP.Exchange.declare(channel, name, @default_type, durable: true)
+    default_type = Application.get_env(:hare_mq, :exchange_type) || :direct
+    AMQP.Exchange.declare(channel, name, default_type, durable: true)
   end
 
   @doc """
