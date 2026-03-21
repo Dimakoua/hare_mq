@@ -34,6 +34,13 @@ defmodule HareMq.Worker.Consumer do
     do:
       (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
+  defp backoff_delay(attempt) do
+    base = reconnect_interval()
+    delay = trunc(base * :math.pow(2, min(attempt - 1, 5)))
+    jitter = :rand.uniform(max(base, 1))
+    min(delay + jitter, 60_000)
+  end
+
   def start_link([config: config, consume: _] = opts) do
     HareMq.GlobalNodeManager.wait_for_all_nodes_ready(config[:consumer_name])
 
@@ -100,7 +107,15 @@ defmodule HareMq.Worker.Consumer do
   defp retry(payload, state, tag, metadata) do
     Basic.nack(state.channel, tag, multiple: false, requeue: false)
 
-    Task.start(fn -> HareMq.RetryPublisher.republish(payload, state, metadata) end)
+    Task.start(fn ->
+      try do
+        HareMq.RetryPublisher.republish(payload, state, metadata)
+      rescue
+        e -> Logger.error("[consumer_worker] republish failed: #{inspect(e)}")
+      catch
+        :exit, e -> Logger.error("[consumer_worker] republish exited: #{inspect(e)}")
+      end
+    end)
   end
 
   def republish_dead_messages(consumer_name, count \\ 1) when is_number(count) do
@@ -168,18 +183,24 @@ defmodule HareMq.Worker.Consumer do
               }
             )
 
+            Process.put(:__hare_mq_connect_attempt__, 0)
             {:noreply, HareMq.Configuration.set_consumer_tag(queue_configuration, consumer_tag)}
 
           _ ->
-            Logger.error("[consumer_worker] Faile to open channel!")
-            Process.send_after(self(), {:connect, opts}, reconnect_interval())
+            attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
+            Process.put(:__hare_mq_connect_attempt__, attempt)
+            delay = backoff_delay(attempt)
+            Logger.error("[consumer_worker] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})...")
+            Process.send_after(self(), {:connect, opts}, delay)
             {:noreply, state}
         end
 
       {:error, _} ->
-        Logger.error("[consumer_worker] Failed to connect. Reconnecting later...")
-        # Retry later
-        Process.send_after(self(), {:connect, opts}, reconnect_interval())
+        attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
+        Process.put(:__hare_mq_connect_attempt__, attempt)
+        delay = backoff_delay(attempt)
+        Logger.error("[consumer_worker] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})...")
+        Process.send_after(self(), {:connect, opts}, delay)
         {:noreply, state}
     end
   end

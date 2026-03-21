@@ -92,6 +92,7 @@ defmodule HareMq.Publisher do
                   AMQP.Exchange.declare(chan, exchange, :topic, durable: true)
                 end
 
+                Process.put(:__hare_mq_connect_attempt__, 0)
                 :telemetry.execute(
                   [:hare_mq, :publisher, :connected],
                   %{system_time: System.system_time()},
@@ -101,15 +102,20 @@ defmodule HareMq.Publisher do
                 {:noreply, chan}
 
               _ ->
-                Logger.error("[publisher] Faile to open channel!")
-                Process.send_after(self(), :connect, reconnect_interval())
+                attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
+                Process.put(:__hare_mq_connect_attempt__, attempt)
+                delay = backoff_delay(attempt)
+                Logger.error("[publisher] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})...")
+                Process.send_after(self(), :connect, delay)
                 {:noreply, state}
             end
 
           {:error, _} ->
-            Logger.error("[publisher] Failed to connect. Reconnecting later...")
-            # Retry later
-            Process.send_after(self(), :connect, reconnect_interval())
+            attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
+            Process.put(:__hare_mq_connect_attempt__, attempt)
+            delay = backoff_delay(attempt)
+            Logger.error("[publisher] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})...")
+            Process.send_after(self(), :connect, delay)
             {:noreply, nil}
         end
       end
@@ -147,6 +153,13 @@ defmodule HareMq.Publisher do
         do:
           (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] ||
             10_000
+
+      defp backoff_delay(attempt) do
+        base = reconnect_interval()
+        delay = trunc(base * :math.pow(2, min(attempt - 1, 5)))
+        jitter = :rand.uniform(max(base, 1))
+        min(delay + jitter, 60_000)
+      end
     end
   end
 

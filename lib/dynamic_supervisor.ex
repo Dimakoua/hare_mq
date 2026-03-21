@@ -1,5 +1,6 @@
 defmodule HareMq.DynamicSupervisor do
   use DynamicSupervisor
+  require Logger
   alias HareMq.AutoScalerConfiguration
   @timeout 70_000
 
@@ -40,8 +41,14 @@ defmodule HareMq.DynamicSupervisor do
   def init([config: _, consume: _] = opts) do
     {:ok, _} =
       Task.start(fn ->
-        start_consumers(opts)
-        start_auto_scaler(opts)
+        try do
+          start_consumers(opts)
+          start_auto_scaler(opts)
+        rescue
+          e -> Logger.error("[dynamic_supervisor] Failed to start workers: #{inspect(e)}")
+        catch
+          :exit, e -> Logger.error("[dynamic_supervisor] Failed to start workers: #{inspect(e)}")
+        end
       end)
 
     DynamicSupervisor.init(strategy: :one_for_one)

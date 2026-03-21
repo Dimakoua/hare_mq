@@ -31,6 +31,15 @@ defmodule HareMq.Connection do
     do:
       (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
 
+  # Exponential backoff capped at 60 s with per-attempt jitter to avoid
+  # thundering-herd reconnection storms after an outage.
+  defp backoff_delay(attempt) do
+    base = reconnect_interval()
+    delay = trunc(base * :math.pow(2, min(attempt - 1, 5)))
+    jitter = :rand.uniform(max(base, 1))
+    min(delay + jitter, 60_000)
+  end
+
   def start_link(opts \\ []) do
     opts = opts || []
     name = Keyword.get(opts, :name, {:global, __MODULE__})
@@ -105,21 +114,25 @@ defmodule HareMq.Connection do
   def handle_info(:connect, _) do
     configs = Application.get_env(:hare_mq, :amqp)
     conn_name = Process.get(:__hare_mq_connection_name__)
+    attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
 
     case configs[:url] do
       nil ->
-        Logger.error("[connection] Missing :amqp config. Retrying later...")
+        Process.put(:__hare_mq_connect_attempt__, attempt)
+        delay = backoff_delay(attempt)
+        Logger.error("[connection] Missing :amqp config. Retrying in #{delay}ms (attempt #{attempt})...")
         :telemetry.execute(
           [:hare_mq, :connection, :reconnecting],
-          %{retry_delay_ms: reconnect_interval()},
+          %{retry_delay_ms: delay},
           %{connection_name: conn_name, reason: :missing_config}
         )
-        Process.send_after(self(), :connect, reconnect_interval())
+        Process.send_after(self(), :connect, delay)
         {:noreply, nil}
 
       host ->
         case Connection.open(host) do
           {:ok, %AMQP.Connection{} = conn} ->
+            Process.put(:__hare_mq_connect_attempt__, 0)
             Process.monitor(conn.pid)
             :telemetry.execute(
               [:hare_mq, :connection, :connected],
@@ -129,13 +142,15 @@ defmodule HareMq.Connection do
             {:noreply, conn}
 
           {:error, reason} ->
-            Logger.error("[connection] Failed to connect #{host}. Reconnecting later...")
+            Process.put(:__hare_mq_connect_attempt__, attempt)
+            delay = backoff_delay(attempt)
+            Logger.error("[connection] Failed to connect #{host}. Reconnecting in #{delay}ms (attempt #{attempt})...")
             :telemetry.execute(
               [:hare_mq, :connection, :reconnecting],
-              %{retry_delay_ms: reconnect_interval()},
+              %{retry_delay_ms: delay},
               %{connection_name: conn_name, host: host, reason: reason}
             )
-            Process.send_after(self(), :connect, reconnect_interval())
+            Process.send_after(self(), :connect, delay)
             {:noreply, nil}
         end
     end
@@ -152,6 +167,8 @@ defmodule HareMq.Connection do
   def handle_info({:DOWN, _, :process, _pid, reason}, _state) do
     conn_name = Process.get(:__hare_mq_connection_name__)
     Logger.error("[connection] Connection lost: #{inspect(reason)}. Reconnecting...")
+    # Reset backoff — first reconnect after a real disconnect should be prompt.
+    Process.put(:__hare_mq_connect_attempt__, 0)
     :telemetry.execute(
       [:hare_mq, :connection, :disconnected],
       %{system_time: System.system_time()},

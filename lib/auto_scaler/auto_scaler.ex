@@ -20,7 +20,7 @@ defmodule HareMq.AutoScaler do
 
   @impl true
   def handle_info(:check_queue, state) do
-    queue_length = get_queue_length(state.config)
+    queue_length = get_queue_length(state.config, state.current_consumer_count)
     state = adjust_consumers(queue_length, state)
 
     schedule_check(state.config.check_interval)
@@ -31,14 +31,27 @@ defmodule HareMq.AutoScaler do
     Process.send_after(self(), :check_queue, interval)
   end
 
-  defp get_queue_length(%AutoScalerConfiguration{module_name: module_name} = _config) do
-    case :global.whereis_name("#{module_name}.W1") do
+  # Walk workers W1..W{count} and return the queue depth from the first one
+  # that is alive and responsive. Falls back to 0 only if none can be reached,
+  # preventing a single dead worker from causing a spurious scale-down.
+  defp get_queue_length(%AutoScalerConfiguration{} = config, current_count) do
+    find_worker_queue_length(config.module_name, 1, max(current_count, 1))
+  end
+
+  defp find_worker_queue_length(_module_name, index, max) when index > max, do: 0
+
+  defp find_worker_queue_length(module_name, index, max) do
+    case :global.whereis_name("#{module_name}.W#{index}") do
       pid when is_pid(pid) ->
-        queue_config = GenServer.call(pid, :get_config, @timeout)
-        AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
+        try do
+          queue_config = GenServer.call(pid, :get_config, @timeout)
+          AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
+        catch
+          :exit, _ -> find_worker_queue_length(module_name, index + 1, max)
+        end
 
       _ ->
-        0
+        find_worker_queue_length(module_name, index + 1, max)
     end
   end
 
