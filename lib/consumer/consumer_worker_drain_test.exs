@@ -30,7 +30,7 @@ defmodule HareMq.Worker.Consumer.DrainTest do
     end
 
     test "does not send a reply when no drain_caller is set" do
-      {from, reply_ref} = make_from()
+      {_from, reply_ref} = make_from()
       ref = make_ref()
       state = build_state(in_flight: MapSet.new([ref]))
 
