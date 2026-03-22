@@ -1,5 +1,6 @@
 defmodule HareMq.AutoScaler do
   use GenServer
+  require Logger
   alias HareMq.AutoScalerConfiguration
 
   @moduledoc """
@@ -67,11 +68,20 @@ defmodule HareMq.AutoScaler do
        ) do
     target_consumer_count = calculate_target_consumer_count(queue_length, config)
 
+    Logger.debug(
+      "[#{config.module_name}] Queue check: #{queue_length} messages, current consumers: #{current_count}, target: #{target_consumer_count}"
+    )
+
     cond do
       target_consumer_count > current_count ->
         supervisor = HareMq.DynamicSupervisor.supervisor_name(config.module_name)
+        scale_up_count = target_consumer_count - current_count
 
-        Enum.each(1..(target_consumer_count - current_count), fn index ->
+        Logger.debug(
+          "[#{config.module_name}] Scaling UP from #{current_count} to #{target_consumer_count} consumers (adding #{scale_up_count})"
+        )
+
+        Enum.each(1..scale_up_count, fn index ->
           HareMq.DynamicSupervisor.add_consumer(
             supervisor,
             worker: config.consumer_worker,
@@ -82,6 +92,11 @@ defmodule HareMq.AutoScaler do
 
       target_consumer_count < current_count ->
         supervisor = HareMq.DynamicSupervisor.supervisor_name(config.module_name)
+        scale_down_count = current_count - target_consumer_count
+
+        Logger.debug(
+          "[#{config.module_name}] Scaling DOWN from #{current_count} to #{target_consumer_count} consumers (removing #{scale_down_count})"
+        )
 
         Enum.each(current_count..(target_consumer_count + 1)//-1, fn index ->
           HareMq.DynamicSupervisor.remove_consumer(
