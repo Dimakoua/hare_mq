@@ -3,7 +3,7 @@ defmodule HareMq.ConnectionTest do
   alias HareMq.Connection
 
   setup do
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
     stop_global(HareMq.Connection)
 
     on_exit(fn -> stop_global(HareMq.Connection) end)

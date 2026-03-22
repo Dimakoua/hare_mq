@@ -44,7 +44,7 @@ defmodule HareMq.Integration.QueueTopologyTest do
 
   setup do
     Application.put_env(:hare_mq, :amqp, url: Mgmt.amqp_url())
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
     # Stop anything left over from a previous test run
     for name <- [ClassicTopologyConsumer, StreamTopologyConsumer, TopologyPublisher,

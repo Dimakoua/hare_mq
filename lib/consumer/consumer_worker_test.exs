@@ -35,7 +35,7 @@ defmodule HareMq.Worker.ConsumerTest do
   ]
 
   setup do
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
     stop_global(HareMq.Connection)
     {:ok, _pid} = Connection.start_link([])
 

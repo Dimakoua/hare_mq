@@ -41,15 +41,15 @@ config :hare_mq, :amqp,
 config :hare_mq, :configuration,
   delay_in_ms: 10_000,       # delay before first retry (default 10 000)
   retry_limit: 15,            # retries before dead-lettering (default 15)
-  message_ttl: 31_449_600,    # queue message TTL in ms (default ~1 year)
-  reconnect_interval_in_ms: 10_000  # AMQP reconnect delay (default 10 000)
+  message_ttl_ms: 31_449_600,    # queue message TTL in ms (default ~1 year)
+  reconnect_interval_ms: 10_000  # AMQP reconnect delay (default 10 000)
 
 # Optional auto-scaler defaults
 config :hare_mq, :auto_scaler,
   min_consumers: 1,
   max_consumers: 20,
   messages_per_consumer: 10,
-  check_interval: 5_000
+  check_interval_ms: 5_000
 ```
 
 > **Note:** `url` takes precedence over `host`. Credentials embedded in the URL (`amqp://user:pass@host`) will appear in crash reports. Use environment variables to keep them out of source control:
@@ -223,7 +223,7 @@ defmodule MyApp.MessageConsumer do
       min_consumers: 1,
       max_consumers: 20,
       messages_per_consumer: 100,  # scale up 1 consumer per N queued messages
-      check_interval: 5_000        # check every 5 s
+      check_interval_ms: 5_000        # check every 5 s
     ]
 
   def consume(message) do
@@ -236,7 +236,7 @@ Multiple `DynamicConsumer` modules can coexist in the same node — each gets it
 
 ### How auto-scaling works
 
-The `HareMq.AutoScaler` is a GenServer that runs alongside the consumer pool. Every `check_interval` milliseconds it performs the following loop:
+The `HareMq.AutoScaler` is a GenServer that runs alongside the consumer pool. Every `check_interval_ms` milliseconds it performs the following loop:
 
 1. **Sample queue depth** — walks live workers `W1 → W{n}` (via `:global` lookup) and asks the first responsive one for the current AMQP queue message count. If no worker responds it assumes depth 0 to avoid a false scale-down on transient failures.
 
@@ -253,7 +253,7 @@ The `HareMq.AutoScaler` is a GenServer that runs alongside the consumer pool. Ev
 
 4. **Scale down** — if `target < current`, gracefully removes `current - target` workers starting from the highest-numbered one (`W{current}` down). Each removal sends a `:cancel_consume` call (with a 70-second timeout) to give the worker time to finish its current message.
 
-5. **Reschedule** — schedules the next check after `check_interval` ms.
+5. **Reschedule** — schedules the next check after `check_interval_ms` ms.
 
 Worker names always follow the pattern `"<ModuleName>.W<n>"`, e.g. `"MyApp.MessageConsumer.W3"`. This naming is stable across restarts, so the auto-scaler and supervisor always agree on which processes exist.
 
@@ -419,7 +419,7 @@ Handles retry routing: publishes to delay queues (with optional cascade of per-r
 
 ### HareMq.Configuration
 
-Struct + builder for per-queue runtime configuration. All default values (`delay_in_ms`, `retry_limit`, `message_ttl`) are read from `Application.get_env` at call time. Accepts keys in any order.
+Struct + builder for per-queue runtime configuration. All default values (`delay_in_ms`, `retry_limit`, `message_ttl_ms`) are read from `Application.get_env` at call time. Accepts keys in any order.
 
 ### HareMq.Exchange / HareMq.Queue
 

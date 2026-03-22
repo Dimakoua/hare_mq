@@ -123,7 +123,7 @@ defmodule HareMq do
         min_consumers: 1,
         max_consumers: 20,
         messages_per_consumer: 100,
-        check_interval: 5_000
+        check_interval_ms: 5_000
       ]
 
     def consume(message), do: :ok
@@ -161,14 +161,14 @@ defmodule HareMq do
   config :hare_mq, :configuration,
     delay_in_ms: 10_000,
     retry_limit: 15,
-    message_ttl: 31_449_600,
-    reconnect_interval_in_ms: 10_000
+    message_ttl_ms: 31_449_600,
+    reconnect_interval_ms: 10_000
 
   config :hare_mq, :auto_scaler,
     min_consumers: 1,
     max_consumers: 20,
     messages_per_consumer: 10,
-    check_interval: 5_000
+    check_interval_ms: 5_000
   ```
 
   All values are read at runtime via `Application.get_env`, so

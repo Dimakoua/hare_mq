@@ -52,7 +52,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
 
   setup do
     Application.put_env(:hare_mq, :amqp, url: Mgmt.amqp_url())
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
     for name <- [AlwaysErrorConsumer, FastDeadLetterConsumer, DelayPublisher, DeadPublisher,
                  HareMq.Connection] do

@@ -83,7 +83,7 @@ defmodule HareMq.Integration.StreamIntegrationTest do
 
   setup do
     Application.put_env(:hare_mq, :amqp, url: Mgmt.amqp_url())
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
     for name <- [StreamNextConsumer, StreamReplayConsumer, StreamErrorConsumer,
                  StreamNextPublisher, StreamErrorPublisher, HareMq.Connection] do

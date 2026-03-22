@@ -6,7 +6,7 @@ defmodule HareMq.Connection do
 
   On start it immediately sends itself a `:connect` message. If the broker is
   unavailable or misconfigured it logs the error and retries after
-  `reconnect_interval_in_ms` (from `config :hare_mq, :configuration`;
+  `reconnect_interval_ms` (from `config :hare_mq, :configuration`;
   default 10 000 ms). All configuration is read at runtime so changes via
   `Application.put_env` take effect on the next reconnect.
 
