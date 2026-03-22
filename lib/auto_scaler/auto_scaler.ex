@@ -45,7 +45,13 @@ defmodule HareMq.AutoScaler do
       pid when is_pid(pid) ->
         try do
           queue_config = GenServer.call(pid, :get_config, @timeout)
-          AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
+          # Check if channel is available before attempting to get message count
+          if queue_config.channel do
+            AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
+          else
+            # Worker hasn't finished connecting yet, try next worker
+            find_worker_queue_length(module_name, index + 1, max)
+          end
         catch
           :exit, _ -> find_worker_queue_length(module_name, index + 1, max)
         end
