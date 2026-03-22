@@ -136,9 +136,20 @@ defmodule HareMq.Worker.Consumer do
     {:reply, state, state}
   end
 
-  def handle_call(:cancel_consume, _, state) do
+  def handle_call(:cancel_consume, from, state) do
     Basic.cancel(state.channel, state.consumer_tag)
-    {:reply, :ok, HareMq.Configuration.cancel_consume(state)}
+    state = HareMq.Configuration.cancel_consume(state)
+
+    if MapSet.size(state.in_flight) == 0 do
+      {:reply, :ok, state}
+    else
+      timeout =
+        (Application.get_env(:hare_mq, :configuration) || [])[:shutdown_drain_timeout_in_ms] ||
+          5_000
+
+      Process.send_after(self(), :drain_timeout, timeout)
+      {:noreply, %{state | drain_caller: from}}
+    end
   end
 
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
@@ -233,7 +244,7 @@ defmodule HareMq.Worker.Consumer do
         {:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered} = metadata},
         state
       ) do
-    Task.start(fn ->
+    {:ok, pid} = Task.start(fn ->
       try do
         message = decode_payload(payload, metadata)
 
@@ -255,12 +266,36 @@ defmodule HareMq.Worker.Consumer do
       end
     end)
 
-    {:noreply, state}
+    ref = Process.monitor(pid)
+    {:noreply, %{state | in_flight: MapSet.put(state.in_flight, ref)}}
   end
 
-  def handle_info({:DOWN, _, :process, _pid, reason}, state) do
-    Logger.error("worker #{__MODULE__} was DOWN")
-    {:stop, {:connection_lost, reason}, state}
+  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
+    if MapSet.member?(state.in_flight, ref) do
+      new_in_flight = MapSet.delete(state.in_flight, ref)
+      new_state = %{state | in_flight: new_in_flight}
+
+      if MapSet.size(new_in_flight) == 0 and not is_nil(state.drain_caller) do
+        GenServer.reply(state.drain_caller, :ok)
+        {:noreply, %{new_state | drain_caller: nil}}
+      else
+        {:noreply, new_state}
+      end
+    else
+      Logger.error("worker #{__MODULE__} was DOWN")
+      {:stop, {:connection_lost, reason}, state}
+    end
+  end
+
+  def handle_info(:drain_timeout, %{drain_caller: nil} = state), do: {:noreply, state}
+
+  def handle_info(:drain_timeout, state) do
+    Logger.warning(
+      "[consumer_worker] Shutdown drain timed out: #{MapSet.size(state.in_flight)} task(s) still running"
+    )
+
+    GenServer.reply(state.drain_caller, :ok)
+    {:noreply, %{state | drain_caller: nil}}
   end
 
   def handle_info({:EXIT, _pid, reason}, state) do

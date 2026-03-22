@@ -20,6 +20,8 @@ defmodule HareMq.Configuration do
   | `:durable` | Always `true` |
   | `:consumer_tag` | Set after `Basic.consume/2` via `set_consumer_tag/2` |
   | `:state` | `:running` or `:cancelled` |
+  | `:in_flight` | `MapSet` of monitor refs for tasks currently processing a message |
+  | `:drain_caller` | Pending `GenServer.reply` target while draining in-flight tasks on cancel |
   | `:stream` | `true` when consuming a stream queue (default `false`) |
   | `:stream_offset` | Where to start consuming: `"first"`, `"last"`, `"next"` (default), integer offset, or `%DateTime{}` |
 
@@ -51,7 +53,9 @@ defmodule HareMq.Configuration do
     :consumer_tag,
     :state,
     :stream,
-    :stream_offset
+    :stream_offset,
+    in_flight: MapSet.new(),
+    drain_caller: nil
   ]
 
   @doc """
@@ -116,6 +120,7 @@ defmodule HareMq.Configuration do
       durable: true,
       consumer_tag: nil,
       state: :running,
+      in_flight: MapSet.new(),
       stream: stream,
       stream_offset: stream_offset
     }

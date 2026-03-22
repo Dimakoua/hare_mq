@@ -62,7 +62,7 @@ defmodule HareMq.AutoScalerTest do
           module_name: module_name,
           queue_name: "test_queue",
           check_interval: 1000,
-          initial_consumer_count: 2,
+          initial_consumer_count: 1,
           min_consumers: 1,
           max_consumers: 5,
           messages_per_consumer: 10,
@@ -71,7 +71,7 @@ defmodule HareMq.AutoScalerTest do
         }
 
         # Create initial state and call handle_info which internally calls get_queue_length
-        state = %{config: config, current_consumer_count: 2}
+        state = %{config: config, current_consumer_count: 1}
 
         # This should not raise FunctionClauseError, it should handle nil channels gracefully
         {:noreply, new_state} = AutoScaler.handle_info(:check_queue, state)
@@ -124,5 +124,9 @@ defmodule MockWorker do
 
   def handle_call(:get_config, _from, state) do
     {:reply, state, state}
+  end
+
+  def handle_call(:cancel_consume, _from, state) do
+    {:reply, :ok, state}
   end
 end
