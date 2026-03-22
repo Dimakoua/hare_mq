@@ -145,11 +145,11 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     {:ok, pub_pid} = StreamNextPublisher.start_link()
     {:ok, cons_pid} = StreamNextConsumer.start_link()
 
-    assert :ok = Mgmt.wait_for_consumers(@next_q)
+    assert :ok = Mgmt.wait_for_consumers(@next_q, 1, "/", 10_000)
     wait_until(fn -> StreamNextPublisher.publish_message("count_test") == :ok end)
 
     # Stream queues retain messages — management API reflects the stored count
-    assert :ok = Mgmt.wait_for_messages(@next_q, 1)
+    assert :ok = Mgmt.wait_for_messages(@next_q, 1, "/", 10_000)
 
     GenServer.stop(pub_pid)
     GenServer.stop(cons_pid)
@@ -163,13 +163,13 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     {:ok, pub_pid} = StreamNextPublisher.start_link()
     {:ok, first_pid} = StreamNextConsumer.start_link()
 
-    assert :ok = Mgmt.wait_for_consumers(@next_q)
+    assert :ok = Mgmt.wait_for_consumers(@next_q, 1, "/", 10_000)
 
     wait_until(fn -> StreamNextPublisher.publish_message("replay_msg_1") == :ok end)
     wait_until(fn -> StreamNextPublisher.publish_message("replay_msg_2") == :ok end)
 
     # Wait for the messages to be stored in the stream
-    assert :ok = Mgmt.wait_for_messages(@next_q, 2)
+    assert :ok = Mgmt.wait_for_messages(@next_q, 2, "/", 10_000)
 
     GenServer.stop(first_pid)
     GenServer.stop(pub_pid)

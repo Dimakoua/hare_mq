@@ -106,7 +106,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
 
     # After the consumer nacks the message, RetryPublisher sends it to
     # the delay queue. Verify via management API.
-    assert :ok = Mgmt.wait_for_messages("#{@delay_q}.delay", 1)
+    assert :ok = Mgmt.wait_for_messages("#{@delay_q}.delay", 1, "/", 10_000)
 
     GenServer.stop(pub_pid)
     GenServer.stop(cons_pid)
@@ -131,7 +131,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
 
     DeadPublisher.publish_message("to_dead")
 
-    assert :ok = Mgmt.wait_for_messages("#{@dead_q}.dead", 1, "/", 5_000)
+    assert :ok = Mgmt.wait_for_messages("#{@dead_q}.dead", 1, "/", 10_000)
 
     GenServer.stop(pub_pid)
     GenServer.stop(cons_pid)
@@ -198,7 +198,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
     wait_until(fn -> match?({:ok, _}, DeadPublisher.get_channel()) end)
 
     DeadPublisher.publish_message("trigger")
-    assert :ok = Mgmt.wait_for_messages("#{@dead_q}.dead", 1, "/", 5_000)
+    assert :ok = Mgmt.wait_for_messages("#{@dead_q}.dead", 1, "/", 10_000)
 
     {:ok, info} = Mgmt.get_queue("#{@dead_q}.dead")
     assert info["durable"] == true

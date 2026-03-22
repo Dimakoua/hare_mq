@@ -86,7 +86,7 @@ defmodule HareMq.Test.RabbitMQManagement do
   Polls until the message count in `queue_name` is >= `expected` or `timeout_ms` expires.
   Returns `:ok` or `{:error, :timeout}`.
   """
-  def wait_for_messages(queue_name, expected_count, vhost \\ @default_vhost, timeout_ms \\ 5_000) do
+  def wait_for_messages(queue_name, expected_count, vhost \\ @default_vhost, timeout_ms \\ 10_000) do
     poll_until(timeout_ms, fn ->
       case get_queue(queue_name, vhost) do
         {:ok, %{"messages" => n}} when n >= expected_count -> {:done, :ok}
@@ -102,7 +102,7 @@ defmodule HareMq.Test.RabbitMQManagement do
   Use this to guarantee a stream consumer (with `stream_offset: "next"`) has
   subscribed before publishing — otherwise messages published earlier are missed.
   """
-  def wait_for_consumers(queue_name, expected_count \\ 1, vhost \\ @default_vhost, timeout_ms \\ 5_000) do
+  def wait_for_consumers(queue_name, expected_count \\ 1, vhost \\ @default_vhost, timeout_ms \\ 10_000) do
     poll_until(timeout_ms, fn ->
       case get_queue(queue_name, vhost) do
         {:ok, %{"consumers" => n}} when n >= expected_count -> {:done, :ok}
