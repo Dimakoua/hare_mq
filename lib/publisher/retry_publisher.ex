@@ -40,32 +40,87 @@ defmodule HareMq.RetryPublisher do
   def republish(payload, %Configuration{} = configuration, %{headers: headers}) do
     retry_count = retry_count(headers)
 
-    retry_options = [
-      persistent: true,
-      headers: [retry_count: retry_count + 1]
-    ]
+    # Preserve all original headers; only replace retry_count
+    base_headers = if is_list(headers), do: headers, else: []
+    other_headers = Enum.reject(base_headers, fn
+      {"retry_count", _, _} -> true
+      _ -> false
+    end)
+    merged_headers = [{"retry_count", :long, retry_count + 1} | other_headers]
 
     if(retry_count < configuration.retry_limit) do
       Logger.debug("Sending message to a delay queue")
-
-      AMQP.Basic.publish(
-        configuration.channel,
-        "",
-        configuration.delay_queue_name,
-        payload,
-        retry_options
-      )
+      republish_to_delay_queue(payload, configuration, retry_count, merged_headers)
     else
       Logger.debug("Sending message to a dead messages queue")
+
+      :telemetry.execute(
+        [:hare_mq, :retry_publisher, :message, :dead_lettered],
+        %{retry_count: retry_count, system_time: System.system_time()},
+        %{queue: configuration.queue_name, dead_queue: configuration.dead_queue_name}
+      )
 
       AMQP.Basic.publish(
         configuration.channel,
         "",
         configuration.dead_queue_name,
         payload,
-        retry_options
+        [persistent: true, headers: merged_headers]
       )
     end
+  end
+
+  defp republish_to_delay_queue(
+         payload,
+         %Configuration{delay_cascade_in_ms: delay_cascade_in_ms} = configuration,
+         retry_count,
+         merged_headers
+       )
+       when is_list(delay_cascade_in_ms) and delay_cascade_in_ms != [] do
+    retry_options = [persistent: true, headers: merged_headers]
+
+    sorted = Enum.sort(delay_cascade_in_ms)
+
+    delay_in_ms =
+      if retry_count < length(sorted) do
+        Enum.at(sorted, retry_count)
+      else
+        List.last(sorted)
+      end
+
+    delay_queue = "#{configuration.delay_queue_name}.#{delay_in_ms}"
+
+    :telemetry.execute(
+      [:hare_mq, :retry_publisher, :message, :retried],
+      %{retry_count: retry_count + 1, system_time: System.system_time()},
+      %{queue: configuration.queue_name, delay_queue: delay_queue}
+    )
+
+    AMQP.Basic.publish(
+      configuration.channel,
+      "",
+      delay_queue,
+      payload,
+      retry_options
+    )
+  end
+
+  defp republish_to_delay_queue(payload, %Configuration{} = configuration, retry_count, merged_headers) do
+    retry_options = [persistent: true, headers: merged_headers]
+
+    :telemetry.execute(
+      [:hare_mq, :retry_publisher, :message, :retried],
+      %{retry_count: retry_count + 1, system_time: System.system_time()},
+      %{queue: configuration.queue_name, delay_queue: configuration.delay_queue_name}
+    )
+
+    AMQP.Basic.publish(
+      configuration.channel,
+      "",
+      configuration.delay_queue_name,
+      payload,
+      retry_options
+    )
   end
 
   @doc """
@@ -82,10 +137,11 @@ defmodule HareMq.RetryPublisher do
   """
   def republish_dead_messages(%Configuration{} = configuration, count) do
     0..(count - 1)
-    |> Enum.each(fn _ ->
+    |> Enum.reduce_while(:ok, fn _, _ ->
       case AMQP.Basic.get(configuration.channel, configuration.dead_queue_name) do
         {:empty, _} ->
           Logger.debug("Queue is empty")
+          {:halt, :ok}
 
         {:ok, message, %{delivery_tag: tag}} ->
           :ok =
@@ -98,6 +154,7 @@ defmodule HareMq.RetryPublisher do
             )
 
           :ok = AMQP.Basic.ack(configuration.channel, tag)
+          {:cont, :ok}
       end
     end)
   end

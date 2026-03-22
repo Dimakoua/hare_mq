@@ -1,7 +1,5 @@
 defmodule HareMq.Exchange do
   alias HareMq.Configuration
-  @default_type Application.compile_env(:hare_mq, :exchange_type, :direct)
-
   @moduledoc """
   Module providing functions for managing RabbitMQ exchanges.
 
@@ -11,15 +9,21 @@ defmodule HareMq.Exchange do
   @doc """
   Declare a RabbitMQ exchange.
 
+  The 3-option form accepts an explicit `:type`. The 2-option form uses
+  the type configured under `config :hare_mq, :exchange_type` (default `:direct`).
+
   ## Parameters
 
   - `:channel`: The AMQP channel.
   - `:name`: The name of the exchange.
-  - `:type`: The type of the exchange.
+  - `:type`: (3-option form only) The exchange type, e.g. `:direct`, `:topic`, `:fanout`.
 
   ## Examples
 
-      HareMq.Exchange.declare(channel: channel, name: "my_exchange", type: :direct)
+      # Explicit type
+      HareMq.Exchange.declare(channel: channel, name: "my_exchange", type: :topic)
+
+      # Type from config :hare_mq, :exchange_type (default :direct)
       HareMq.Exchange.declare(channel: channel, name: "my_exchange")
   """
   def declare(channel: channel, name: name, type: type) do
@@ -27,7 +31,8 @@ defmodule HareMq.Exchange do
   end
 
   def declare(channel: channel, name: name) do
-    AMQP.Exchange.declare(channel, name, @default_type, durable: true)
+    default_type = Application.get_env(:hare_mq, :exchange_type) || :direct
+    AMQP.Exchange.declare(channel, name, default_type, durable: true)
   end
 
   @doc """

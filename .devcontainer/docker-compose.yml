@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  elixir:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hare_mq_dev
+    volumes:
+      - ..:/workspace
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      - rabbitmq
+    networks:
+      - hare_mq_network
+    command: /bin/sh -c "while sleep 1000; do :; done"
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: hare_mq_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - hare_mq_network
+
+networks:
+  hare_mq_network:
+    driver: bridge

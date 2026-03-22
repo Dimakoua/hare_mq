@@ -24,6 +24,14 @@ defmodule HareMq.TestCase do
       wait_loop(condition, start_time, timeout, interval)
     end
 
+    @doc "Stops a globally registered GenServer by module name, no-op if not running."
+    def stop_global(name) do
+      case GenServer.whereis({:global, name}) do
+        nil -> :ok
+        pid -> GenServer.stop(pid)
+      end
+    end
+
     defp wait_loop(condition, start_time, timeout, interval) do
       if condition.() do
         :ok

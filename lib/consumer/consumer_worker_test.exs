@@ -11,18 +11,18 @@ defmodule HareMq.Worker.ConsumerTest do
 
   # Define a simple Consumer module
   defmodule TestConsumer do
-    @test_message "publishing and consuming messages test"
     use HareMq.Consumer,
       queue_name: "test_queue_name_1",
       routing_key: "test_routing_key_1",
       exchange: "test_routing_key_1"
 
     def consume(message) do
-      if :ok !== wait_until(fn -> message === @test_message end) do
-        GenServer.stop(self())
-      else
-        :ok
+      case :global.whereis_name(:consumer_worker_test_receiver) do
+        pid when is_pid(pid) -> send(pid, {:consumed, message})
+        _ -> :ok
       end
+
+      :ok
     end
   end
 
@@ -35,8 +35,11 @@ defmodule HareMq.Worker.ConsumerTest do
   ]
 
   setup do
-    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_in_ms: 100})
-    {:ok, _pid} = Connection.start_link(nil)
+    Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
+    stop_global(HareMq.Connection)
+    {:ok, _pid} = Connection.start_link([])
+
+    on_exit(fn -> stop_global(HareMq.Connection) end)
 
     :ok
   end
@@ -50,25 +53,25 @@ defmodule HareMq.Worker.ConsumerTest do
   end
 
   test "publishing and consuming messages" do
+    :global.register_name(:consumer_worker_test_receiver, self())
+
     {:ok, pub_pid} = TestPublisher.start_link()
+    {:ok, cons_pid} = TestConsumer.start_link()
 
-    {:ok, cons_pid} =
-      TestConsumer.start_link(
-        config: %{
-          consumer_name: "test_consumer",
-          queue_name: "test_queue",
-          exchange: "test_exchange"
-        },
-        consume: &TestConsumer.consume/1
-      )
+    wait_until(fn ->
+      case GenServer.call({:global, TestConsumer}, :get_channel) do
+        %{consumer_tag: tag} when is_binary(tag) -> true
+        _ -> false
+      end
+    end)
 
-    Process.sleep(200)
+    wait_until(fn -> TestPublisher.publish_message(@test_message) == :ok end)
 
-    wait_until(fn -> :ok = TestPublisher.publish_message(@test_message) end)
-
-    Process.sleep(200)
+    assert_receive {:consumed, @test_message}, 5_000
 
     assert :ok = GenServer.stop(pub_pid)
     assert :ok = GenServer.stop(cons_pid)
+  after
+    :global.unregister_name(:consumer_worker_test_receiver)
   end
 end
