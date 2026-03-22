@@ -35,7 +35,20 @@ defmodule HareMq.GlobalNodeManager do
     else
       case :global.sync() do
         :ok ->
-          Logger.info("[GlobalNodeManager] :global registry synced for #{inspect(name)}.")
+          # After sync, check if another node already registered this name.
+          # If so, our own GenServer.start_link will return {:already_started, pid}
+          # which CodeFlow.successful_start/1 converts to :ignore — this log
+          # just makes that situation visible before it happens.
+          case :global.whereis_name(name) do
+            pid when is_pid(pid) ->
+              Logger.debug(
+                "[GlobalNodeManager] #{inspect(name)} already registered globally on node #{inspect(node(pid))}."
+              )
+
+            :undefined ->
+              Logger.debug("[GlobalNodeManager] :global registry synced for #{inspect(name)}.")
+          end
+
           :ok
 
         {:error, reason} ->

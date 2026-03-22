@@ -62,11 +62,19 @@ defmodule HareMq.DynamicSupervisor do
     supervisor = supervisor_name(config[:module_name])
 
     Enum.each(1..config[:consumer_count], fn number ->
-      start_child(supervisor,
+      name = "#{config[:module_name]}.W#{number}"
+
+      case start_child(supervisor,
         worker: config[:consumer_worker],
-        name: "#{config[:module_name]}.W#{number}",
+        name: name,
         opts: opts
-      )
+      ) do
+        {:ok, _pid} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.error("[dynamic_supervisor] Failed to start worker #{name}: #{inspect(reason)}")
+      end
     end)
   end
 

@@ -7,7 +7,12 @@ defmodule HareMq.AutoScaler do
   A GenServer that automatically scales the number of consumers based on the
   number of messages in the RabbitMQ queue.
   """
-  @timeout 30_000
+
+  # How long to wait for a worker's :get_config call before trying the next one.
+  # Configurable via `config :hare_mq, :auto_scaler, worker_timeout_ms: 5_000`.
+  defp worker_call_timeout do
+    (Application.get_env(:hare_mq, :auto_scaler) || [])[:worker_timeout_ms] || 5_000
+  end
 
   def start_link(%HareMq.AutoScalerConfiguration{module_name: module_name} = opts) do
     GenServer.start_link(__MODULE__, opts, name: {:global, :"#{module_name}.AutoScaler"})
@@ -45,7 +50,7 @@ defmodule HareMq.AutoScaler do
     case :global.whereis_name("#{module_name}.W#{index}") do
       pid when is_pid(pid) ->
         try do
-          queue_config = GenServer.call(pid, :get_config, @timeout)
+          queue_config = GenServer.call(pid, :get_config, worker_call_timeout())
           # Check if channel is available before attempting to get message count
           if queue_config.channel do
             AMQP.Queue.message_count(queue_config.channel, queue_config.queue_name)
@@ -98,7 +103,7 @@ defmodule HareMq.AutoScaler do
           "[#{config.module_name}] Scaling DOWN from #{current_count} to #{target_consumer_count} consumers (removing #{scale_down_count})"
         )
 
-        Enum.each(current_count..(target_consumer_count + 1)//-1, fn index ->
+        Enum.each((target_consumer_count + 1)..current_count, fn index ->
           HareMq.DynamicSupervisor.remove_consumer(
             supervisor,
             generate_consumer_name(config.module_name, index)
