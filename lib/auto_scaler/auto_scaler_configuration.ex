@@ -17,7 +17,7 @@ defmodule HareMq.AutoScalerConfiguration do
   - `:min_consumers`: The minimum number of consumers to maintain.
   - `:max_consumers`: The maximum number of consumers to maintain.
   - `:messages_per_consumer`: The number of messages per consumer.
-  - `:check_interval`: The interval (in milliseconds) at which to check the queue length.
+  - `:check_interval_ms`: The interval (in milliseconds) at which to check the queue length.
 
   ## Examples
 
@@ -29,7 +29,7 @@ defmodule HareMq.AutoScalerConfiguration do
         min_consumers: 1,
         max_consumers: 20,
         messages_per_consumer: 100,
-        check_interval: 5_000
+        check_interval_ms: 5_000
       }
   """
   defstruct [
@@ -41,7 +41,7 @@ defmodule HareMq.AutoScalerConfiguration do
     :min_consumers,
     :max_consumers,
     :messages_per_consumer,
-    :check_interval,
+    :check_interval_ms,
     :consumer_opts
   ]
 
@@ -76,7 +76,7 @@ defmodule HareMq.AutoScalerConfiguration do
       max_consumers: auto_scaling[:max_consumers] || auto_scaler_config(:max_consumers, 20),
       messages_per_consumer:
         auto_scaling[:messages_per_consumer] || auto_scaler_config(:messages_per_consumer, 10),
-      check_interval: auto_scaling[:check_interval] || auto_scaler_config(:check_interval, 5_000)
+      check_interval_ms: auto_scaling[:check_interval_ms] || auto_scaler_config(:check_interval_ms, 5_000)
     }
 
     if config.min_consumers > config.max_consumers do

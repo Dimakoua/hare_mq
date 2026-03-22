@@ -5,7 +5,7 @@ defmodule HareMq.AutoScalerTest do
 
   @default_config %AutoScalerConfiguration{
     module_name: "TestModule",
-    check_interval: 1000,
+    check_interval_ms: 1000,
     initial_consumer_count: 1,
     min_consumers: 1,
     max_consumers: 5,
@@ -30,7 +30,7 @@ defmodule HareMq.AutoScalerTest do
   test "schedules a check after initialization", %{config: config} do
     {:ok, _state} = AutoScaler.init(config)
 
-    assert_receive :check_queue, config.check_interval + 100
+    assert_receive :check_queue, config.check_interval_ms + 100
   end
 
   test "calculate_target_consumer_count calculates the correct number of consumers", %{
@@ -61,7 +61,7 @@ defmodule HareMq.AutoScalerTest do
         config = %AutoScalerConfiguration{
           module_name: module_name,
           queue_name: "test_queue",
-          check_interval: 1000,
+          check_interval_ms: 1000,
           initial_consumer_count: 1,
           min_consumers: 1,
           max_consumers: 5,
@@ -88,7 +88,7 @@ defmodule HareMq.AutoScalerTest do
       config = %AutoScalerConfiguration{
         module_name: module_name,
         queue_name: "test_queue",
-        check_interval: 1000,
+        check_interval_ms: 1000,
         initial_consumer_count: 2,
         min_consumers: 1,
         max_consumers: 5,

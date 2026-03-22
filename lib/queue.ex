@@ -107,7 +107,7 @@ defmodule HareMq.Queue do
       config.dead_queue_name,
       durable: config.durable,
       arguments: [
-        {"x-message-ttl", :long, config.message_ttl}
+        {"x-message-ttl", :long, config.message_ttl_ms}
       ]
     )
   end

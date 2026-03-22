@@ -32,7 +32,7 @@ defmodule HareMq.Worker.Consumer do
 
   defp reconnect_interval,
     do:
-      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
+      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
 
   defp backoff_delay(attempt) do
     base = reconnect_interval()
@@ -144,7 +144,7 @@ defmodule HareMq.Worker.Consumer do
       {:reply, :ok, state}
     else
       timeout =
-        (Application.get_env(:hare_mq, :configuration) || [])[:shutdown_drain_timeout_in_ms] ||
+        (Application.get_env(:hare_mq, :configuration) || [])[:shutdown_drain_timeout_ms] ||
           5_000
 
       Process.send_after(self(), :drain_timeout, timeout)

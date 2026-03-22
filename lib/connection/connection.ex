@@ -29,7 +29,7 @@ defmodule HareMq.Connection do
 
   defp reconnect_interval,
     do:
-      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_in_ms] || 10_000
+      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
 
   # Exponential backoff capped at 60 s with per-attempt jitter to avoid
   # thundering-herd reconnection storms after an outage.

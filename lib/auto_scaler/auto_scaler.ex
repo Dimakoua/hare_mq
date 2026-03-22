@@ -20,7 +20,7 @@ defmodule HareMq.AutoScaler do
 
   @impl true
   def init(%AutoScalerConfiguration{} = config) do
-    schedule_check(config.check_interval)
+    schedule_check(config.check_interval_ms)
     {:ok, %{config: config, current_consumer_count: config.initial_consumer_count}}
   end
 
@@ -29,7 +29,7 @@ defmodule HareMq.AutoScaler do
     queue_length = get_queue_length(state.config, state.current_consumer_count)
     state = adjust_consumers(queue_length, state)
 
-    schedule_check(state.config.check_interval)
+    schedule_check(state.config.check_interval_ms)
     {:noreply, state}
   end
 

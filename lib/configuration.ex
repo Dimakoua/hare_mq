@@ -15,7 +15,7 @@ defmodule HareMq.Configuration do
   | `:routing_key` | Routing key |
   | `:delay_in_ms` | Delay before first retry (runtime config or `10_000`) |
   | `:delay_cascade_in_ms` | List of per-retry delays, e.g. `[1_000, 5_000, 30_000]` |
-  | `:message_ttl` | Queue-level message TTL in ms (runtime config or `31_449_600`) |
+  | `:message_ttl_ms` | Queue-level message TTL in ms (runtime config or `31_449_600`) |
   | `:retry_limit` | Max retries before dead-lettering (runtime config or `15`) |
   | `:durable` | Always `true` |
   | `:consumer_tag` | Set after `Basic.consume/2` via `set_consumer_tag/2` |
@@ -27,7 +27,7 @@ defmodule HareMq.Configuration do
 
   ## Default resolution
 
-  `delay_in_ms`, `retry_limit`, and `message_ttl` are resolved at call time via
+  `delay_in_ms`, `retry_limit`, and `message_ttl_ms` are resolved at call time via
   `Application.get_env(:hare_mq, :configuration)`, so runtime config changes
   (including `Application.put_env` in tests) take effect immediately.
 
@@ -47,7 +47,7 @@ defmodule HareMq.Configuration do
     :exchange,
     :routing_key,
     :delay_in_ms,
-    :message_ttl,
+    :message_ttl_ms,
     :retry_limit,
     :durable,
     :consumer_tag,
@@ -115,7 +115,7 @@ defmodule HareMq.Configuration do
       routing_key: routing_key,
       delay_in_ms: if(is_nil(delay_in_ms), do: config_value(:delay_in_ms, 10_000), else: delay_in_ms),
       delay_cascade_in_ms: delay_cascade_in_ms || [],
-      message_ttl: config_value(:message_ttl, 31_449_600),
+      message_ttl_ms: config_value(:message_ttl_ms, 31_449_600),
       retry_limit: if(is_nil(retry_limit), do: config_value(:retry_limit, 15), else: retry_limit),
       durable: true,
       consumer_tag: nil,
