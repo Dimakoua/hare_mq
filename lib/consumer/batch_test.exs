@@ -81,7 +81,7 @@ defmodule HareMq.Consumer.BatchTest do
       exchange: "batch_retry_exchange",
       batch_size: 2,
       retry_limit: 1,
-      delay_in_ms: 100
+      delay_in_ms: 50_000
 
     def consume(messages, :batch) do
       case :global.whereis_name(:batch_retry_test_pid) do
