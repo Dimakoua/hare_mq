@@ -142,6 +142,38 @@ Options for `use HareMq.Consumer`:
 | `connection_name` | `{:global, HareMq.Connection}` | Named connection for multi-vhost use |
 | `stream` | `false` | `true` to consume a [RabbitMQ stream queue](#stream-consumer) |
 | `stream_offset` | `"next"` | Where to start reading — see [Stream Consumer](#stream-consumer) |
+| `batch_size` | `1` | Number of messages to process in a single batch |
+| `batch_timeout_ms` | `5000` | Timeout in ms to flush partial batches |
+
+---
+
+## Batch Consumer
+
+Batch processing allows you to receive multiple messages at once. This is useful for high-throughput scenarios where processing messages individually is inefficient (e.g., bulk database inserts).
+
+```elixir
+defmodule MyApp.BatchConsumer do
+  use HareMq.Consumer,
+    queue_name: "my_queue",
+    batch_size: 10,
+    batch_timeout_ms: 2000
+
+  # When batch_size > 1, consume/2 is called with the :batch type
+  def consume(messages, :batch) do
+    IO.puts("Received batch of #{length(messages)} messages")
+    # Process messages...
+    :ok
+  end
+end
+```
+
+When `batch_size` is greater than 1:
+- `prefetch_count` is automatically increased to match at least the `batch_size`.
+- The consumer waits until `batch_size` messages are received or `batch_timeout_ms` is reached before calling `consume/2`.
+- Messages are decoded (e.g., from JSON) before being passed to the batch.
+- Returning `:ok` or `{:ok, _}` acknowledges **all** messages in the batch individually.
+- Returning `:error` or `{:error, _}` triggers the retry/dead-letter logic for **each** message in the batch.
+- A failed/crashed batch task will result in messages being redelivered (standard RabbitMQ behavior).
 
 ---
 

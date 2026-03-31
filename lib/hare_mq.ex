@@ -61,6 +61,27 @@ defmodule HareMq do
 
   ---
 
+  ## Batch Consumer
+
+  Batch processing allows processing multiple messages at once. Set `batch_size` and `batch_timeout_ms` to enable it.
+
+  ```elixir
+  defmodule MyApp.BatchConsumer do
+    use HareMq.Consumer,
+      queue_name: "my_queue",
+      batch_size: 50,
+      batch_timeout_ms: 2000
+
+    def consume(messages, :batch) do
+      # messages is a list of decoded payloads
+      IO.puts("Received batch of \#{length(messages)} messages")
+      :ok
+    end
+  end
+  ```
+
+  ---
+
   ## Stream Consumer
 
   Stream queues are persistent, append-only logs. Each consumer reads at its own
