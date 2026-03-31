@@ -34,7 +34,8 @@ defmodule HareMq.Worker.Consumer.DrainTest do
       ref = make_ref()
       state = build_state(in_flight: MapSet.new([ref]))
 
-      {:noreply, _new_state} = Consumer.handle_info({:DOWN, ref, :process, self(), :normal}, state)
+      {:noreply, _new_state} =
+        Consumer.handle_info({:DOWN, ref, :process, self(), :normal}, state)
 
       refute_receive {^reply_ref, :ok}, 100
     end
@@ -57,7 +58,8 @@ defmodule HareMq.Worker.Consumer.DrainTest do
       ref2 = make_ref()
       state = build_state(in_flight: MapSet.new([ref1, ref2]), drain_caller: from)
 
-      {:noreply, new_state} = Consumer.handle_info({:DOWN, ref1, :process, self(), :normal}, state)
+      {:noreply, new_state} =
+        Consumer.handle_info({:DOWN, ref1, :process, self(), :normal}, state)
 
       assert MapSet.size(new_state.in_flight) == 1
       assert MapSet.member?(new_state.in_flight, ref2)
@@ -203,7 +205,9 @@ defmodule HareMq.Worker.Consumer.DrainTest do
 
       # Last task finishes → reply
       last_ref = List.last(refs)
-      {:noreply, done_state} = Consumer.handle_info({:DOWN, last_ref, :process, self(), :normal}, final_state)
+
+      {:noreply, done_state} =
+        Consumer.handle_info({:DOWN, last_ref, :process, self(), :normal}, final_state)
 
       assert MapSet.size(done_state.in_flight) == 0
       assert done_state.drain_caller == nil

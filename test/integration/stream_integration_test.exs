@@ -85,8 +85,14 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     Application.put_env(:hare_mq, :amqp, url: Mgmt.amqp_url())
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
-    for name <- [StreamNextConsumer, StreamReplayConsumer, StreamErrorConsumer,
-                 StreamNextPublisher, StreamErrorPublisher, HareMq.Connection] do
+    for name <- [
+          StreamNextConsumer,
+          StreamReplayConsumer,
+          StreamErrorConsumer,
+          StreamNextPublisher,
+          StreamErrorPublisher,
+          HareMq.Connection
+        ] do
       stop_global(name)
     end
 
@@ -99,8 +105,14 @@ defmodule HareMq.Integration.StreamIntegrationTest do
     {:ok, _} = Connection.start_link([])
 
     on_exit(fn ->
-      for name <- [StreamNextConsumer, StreamReplayConsumer, StreamErrorConsumer,
-                   StreamNextPublisher, StreamErrorPublisher, HareMq.Connection] do
+      for name <- [
+            StreamNextConsumer,
+            StreamReplayConsumer,
+            StreamErrorConsumer,
+            StreamNextPublisher,
+            StreamErrorPublisher,
+            HareMq.Connection
+          ] do
         stop_global(name)
       end
 
@@ -123,6 +135,7 @@ defmodule HareMq.Integration.StreamIntegrationTest do
 
     # Ensure the consumer has subscribed (stream_offset: "next") before publishing
     wait_until(fn -> match?({:ok, _}, StreamNextPublisher.get_channel()) end)
+
     wait_until(fn ->
       case GenServer.call({:global, StreamNextConsumer}, :get_channel) do
         %{consumer_tag: tag} when is_binary(tag) -> true
@@ -194,6 +207,7 @@ defmodule HareMq.Integration.StreamIntegrationTest do
 
     # Wait for consumer subscription before publishing (stream_offset: "next")
     wait_until(fn -> match?({:ok, _}, StreamErrorPublisher.get_channel()) end)
+
     wait_until(fn ->
       case GenServer.call({:global, StreamErrorConsumer}, :get_channel) do
         %{consumer_tag: tag} when is_binary(tag) -> true

@@ -37,6 +37,7 @@ defmodule HareMq.DedupCache do
   def start_link(opts \\ []) do
     server_name = Keyword.get(opts, :name, {:global, __MODULE__})
     table_name = ets_table_name(server_name)
+
     GenServer.start_link(__MODULE__, table_name, name: server_name)
     |> HareMq.CodeFlow.successful_start()
   end

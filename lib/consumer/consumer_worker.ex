@@ -31,8 +31,7 @@ defmodule HareMq.Worker.Consumer do
   """
 
   defp reconnect_interval,
-    do:
-      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
+    do: (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
 
   defp backoff_delay(attempt) do
     base = reconnect_interval()
@@ -118,7 +117,9 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
-    case HareMq.Connection.get_connection(config[:connection_name] || {:global, HareMq.Connection}) do
+    case HareMq.Connection.get_connection(
+           config[:connection_name] || {:global, HareMq.Connection}
+         ) do
       {:ok, conn} ->
         # Get notifications when the connection goes down
         Process.monitor(conn.pid)
@@ -147,7 +148,13 @@ defmodule HareMq.Worker.Consumer do
 
             declare_queues(queue_configuration)
 
-            {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name], nil, stream_consume_opts(queue_configuration))
+            {:ok, consumer_tag} =
+              Basic.consume(
+                chan,
+                config[:queue_name],
+                nil,
+                stream_consume_opts(queue_configuration)
+              )
 
             :telemetry.execute(
               [:hare_mq, :consumer, :connected],
@@ -168,7 +175,11 @@ defmodule HareMq.Worker.Consumer do
             attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
             Process.put(:__hare_mq_connect_attempt__, attempt)
             delay = backoff_delay(attempt)
-            Logger.error("[consumer_worker] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+            Logger.error(
+              "[consumer_worker] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})..."
+            )
+
             Process.send_after(self(), {:connect, opts}, delay)
             {:noreply, state}
         end
@@ -177,7 +188,11 @@ defmodule HareMq.Worker.Consumer do
         attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
         Process.put(:__hare_mq_connect_attempt__, attempt)
         delay = backoff_delay(attempt)
-        Logger.error("[consumer_worker] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+        Logger.error(
+          "[consumer_worker] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})..."
+        )
+
         Process.send_after(self(), {:connect, opts}, delay)
         {:noreply, state}
     end
@@ -245,6 +260,48 @@ defmodule HareMq.Worker.Consumer do
     end
   end
 
+  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
+    if MapSet.member?(state.in_flight, ref) do
+      new_in_flight = MapSet.delete(state.in_flight, ref)
+      new_state = %{state | in_flight: new_in_flight}
+
+      if MapSet.size(new_in_flight) == 0 and not is_nil(state.drain_caller) do
+        GenServer.reply(state.drain_caller, :ok)
+        {:noreply, %{new_state | drain_caller: nil}}
+      else
+        {:noreply, new_state}
+      end
+    else
+      # Clean up batch timer and nack any pending messages
+      if state.batch_timer_ref do
+        Process.cancel_timer(state.batch_timer_ref)
+      end
+
+      Enum.each(state.pending_batch, fn {_payload, metadata} ->
+        Basic.nack(state.channel, metadata.delivery_tag, multiple: false, requeue: false)
+      end)
+
+      Logger.error("worker #{__MODULE__} was DOWN")
+      {:stop, {:connection_lost, reason}, state}
+    end
+  end
+
+  def handle_info(:drain_timeout, %{drain_caller: nil} = state), do: {:noreply, state}
+
+  def handle_info(:drain_timeout, state) do
+    Logger.warning(
+      "[consumer_worker] Shutdown drain timed out: #{MapSet.size(state.in_flight)} task(s) still running"
+    )
+
+    GenServer.reply(state.drain_caller, :ok)
+    {:noreply, %{state | drain_caller: nil}}
+  end
+
+  def handle_info({:EXIT, _pid, reason}, state) do
+    {:stop, {:connection_lost, reason}, state}
+  end
+
+
   defp process_batch(batch, state) do
     {:ok, pid} =
       Task.start(fn ->
@@ -261,7 +318,11 @@ defmodule HareMq.Worker.Consumer do
           result =
             :telemetry.span(
               [:hare_mq, :consumer, :message],
-              %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
+              %{
+                queue: state.queue_name,
+                exchange: state.exchange,
+                routing_key: state.routing_key
+              },
               fn ->
                 r = state.consume_fn.(data, type)
 
@@ -304,7 +365,7 @@ defmodule HareMq.Worker.Consumer do
 
   defp retry_batch(batch, state, _tag) do
     Task.start(fn ->
-      {successful, failed} = republish_batch_messages(batch, state)
+      {_successful, failed} = republish_batch_messages(batch, state)
 
       if failed > 0 do
         Logger.warning(
@@ -357,47 +418,6 @@ defmodule HareMq.Worker.Consumer do
     rescue
       _ -> :error
     end
-  end
-
-  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
-    if MapSet.member?(state.in_flight, ref) do
-      new_in_flight = MapSet.delete(state.in_flight, ref)
-      new_state = %{state | in_flight: new_in_flight}
-
-      if MapSet.size(new_in_flight) == 0 and not is_nil(state.drain_caller) do
-        GenServer.reply(state.drain_caller, :ok)
-        {:noreply, %{new_state | drain_caller: nil}}
-      else
-        {:noreply, new_state}
-      end
-    else
-      # Clean up batch timer and nack any pending messages
-      if state.batch_timer_ref do
-        Process.cancel_timer(state.batch_timer_ref)
-      end
-
-      Enum.each(state.pending_batch, fn {_payload, metadata} ->
-        Basic.nack(state.channel, metadata.delivery_tag, multiple: false, requeue: false)
-      end)
-
-      Logger.error("worker #{__MODULE__} was DOWN")
-      {:stop, {:connection_lost, reason}, state}
-    end
-  end
-
-  def handle_info(:drain_timeout, %{drain_caller: nil} = state), do: {:noreply, state}
-
-  def handle_info(:drain_timeout, state) do
-    Logger.warning(
-      "[consumer_worker] Shutdown drain timed out: #{MapSet.size(state.in_flight)} task(s) still running"
-    )
-
-    GenServer.reply(state.drain_caller, :ok)
-    {:noreply, %{state | drain_caller: nil}}
-  end
-
-  def handle_info({:EXIT, _pid, reason}, state) do
-    {:stop, {:connection_lost, reason}, state}
   end
 
   defp consume_result_status(:ok), do: :ok
@@ -461,6 +481,9 @@ defmodule HareMq.Worker.Consumer do
 
   defp stream_offset_arg(offset) when is_binary(offset), do: {"x-stream-offset", :longstr, offset}
   defp stream_offset_arg(offset) when is_integer(offset), do: {"x-stream-offset", :long, offset}
-  defp stream_offset_arg(%DateTime{} = dt), do: {"x-stream-offset", :timestamp, DateTime.to_unix(dt)}
+
+  defp stream_offset_arg(%DateTime{} = dt),
+    do: {"x-stream-offset", :timestamp, DateTime.to_unix(dt)}
+
   defp stream_offset_arg(nil), do: {"x-stream-offset", :longstr, "next"}
 end

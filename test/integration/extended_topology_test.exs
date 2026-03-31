@@ -326,6 +326,7 @@ defmodule HareMq.Integration.ExtendedTopologyTest do
       for {queue_suffix, expected_ttl} <- [{"5000", 5_000}, {"15000", 15_000}, {"30000", 30_000}] do
         {:ok, info} = Mgmt.get_queue("#{@cascade_q}.delay.#{queue_suffix}")
         args = Map.new(info["arguments"])
+
         assert args["x-message-ttl"] == expected_ttl,
                "expected x-message-ttl #{expected_ttl} for #{@cascade_q}.delay.#{queue_suffix}, got #{inspect(args)}"
       end
@@ -354,6 +355,7 @@ defmodule HareMq.Integration.ExtendedTopologyTest do
       for suffix <- ["5000", "15000", "30000"] do
         {:ok, info} = Mgmt.get_queue("#{@cascade_q}.delay.#{suffix}")
         args = Map.new(info["arguments"])
+
         assert args["x-dead-letter-exchange"] == @cascade_q,
                "#{@cascade_q}.delay.#{suffix} should have x-dead-letter-exchange = #{@cascade_q}"
       end

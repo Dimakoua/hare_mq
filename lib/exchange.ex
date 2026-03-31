@@ -1,5 +1,6 @@
 defmodule HareMq.Exchange do
   alias HareMq.Configuration
+
   @moduledoc """
   Module providing functions for managing RabbitMQ exchanges.
 

@@ -42,10 +42,13 @@ defmodule HareMq.RetryPublisher do
 
     # Preserve all original headers; only replace retry_count
     base_headers = if is_list(headers), do: headers, else: []
-    other_headers = Enum.reject(base_headers, fn
-      {"retry_count", _, _} -> true
-      _ -> false
-    end)
+
+    other_headers =
+      Enum.reject(base_headers, fn
+        {"retry_count", _, _} -> true
+        _ -> false
+      end)
+
     merged_headers = [{"retry_count", :long, retry_count + 1} | other_headers]
 
     if(retry_count < configuration.retry_limit) do
@@ -65,7 +68,8 @@ defmodule HareMq.RetryPublisher do
         "",
         configuration.dead_queue_name,
         payload,
-        [persistent: true, headers: merged_headers]
+        persistent: true,
+        headers: merged_headers
       )
     end
   end
@@ -105,7 +109,12 @@ defmodule HareMq.RetryPublisher do
     )
   end
 
-  defp republish_to_delay_queue(payload, %Configuration{} = configuration, retry_count, merged_headers) do
+  defp republish_to_delay_queue(
+         payload,
+         %Configuration{} = configuration,
+         retry_count,
+         merged_headers
+       ) do
     retry_options = [persistent: true, headers: merged_headers]
 
     :telemetry.execute(

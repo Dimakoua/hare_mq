@@ -1,7 +1,8 @@
 defmodule HareMq.Consumer do
   defmodule Behaviour do
     @callback consume(map() | binary()) :: :ok | {:ok, any()} | :error | {:error, any()}
-    @callback consume(list(map() | binary()), :batch) :: :ok | {:ok, any()} | :error | {:error, any()}
+    @callback consume(list(map() | binary()), :batch) ::
+                :ok | {:ok, any()} | :error | {:error, any()}
   end
 
   @moduledoc """

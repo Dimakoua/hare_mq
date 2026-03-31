@@ -121,7 +121,8 @@ defmodule HareMq.Configuration do
       dead_queue_name: "#{name}.dead",
       exchange: exchange,
       routing_key: routing_key,
-      delay_in_ms: if(is_nil(delay_in_ms), do: config_value(:delay_in_ms, 10_000), else: delay_in_ms),
+      delay_in_ms:
+        if(is_nil(delay_in_ms), do: config_value(:delay_in_ms, 10_000), else: delay_in_ms),
       delay_cascade_in_ms: delay_cascade_in_ms || [],
       message_ttl_ms: config_value(:message_ttl_ms, 31_449_600),
       retry_limit: if(is_nil(retry_limit), do: config_value(:retry_limit, 15), else: retry_limit),
