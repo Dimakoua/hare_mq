@@ -336,13 +336,11 @@ defmodule HareMq.Worker.Consumer do
               end
             )
 
-          {_last_payload, last_metadata} = List.last(batch)
-          process_batch_result(result, batch, state, last_metadata.delivery_tag)
+          process_batch_result(result, batch, state)
         rescue
           reason ->
             Logger.error(inspect(reason))
-            {_last_payload, last_metadata} = List.last(batch)
-            retry_batch(batch, state, last_metadata.delivery_tag)
+            retry_batch(batch, state)
         end
       end)
 
@@ -350,20 +348,26 @@ defmodule HareMq.Worker.Consumer do
     %{state | in_flight: MapSet.put(state.in_flight, ref)}
   end
 
-  defp process_batch_result(_result, _batch, %{stream: true} = state, tag) do
-    Basic.ack(state.channel, tag, multiple: true)
+  defp process_batch_result(_result, batch, %{stream: true} = state) do
+    ack_batch(batch, state)
   end
 
-  defp process_batch_result(result, batch, state, tag) do
+  defp process_batch_result(result, batch, state) do
     case result do
-      :ok -> Basic.ack(state.channel, tag, multiple: true)
-      {:ok, _} -> Basic.ack(state.channel, tag, multiple: true)
-      :error -> retry_batch(batch, state, tag)
-      {:error, _} -> retry_batch(batch, state, tag)
+      :ok -> ack_batch(batch, state)
+      {:ok, _} -> ack_batch(batch, state)
+      :error -> retry_batch(batch, state)
+      {:error, _} -> retry_batch(batch, state)
     end
   end
 
-  defp retry_batch(batch, state, _tag) do
+  defp ack_batch(batch, state) do
+    Enum.each(batch, fn {_payload, metadata} ->
+      Basic.ack(state.channel, metadata.delivery_tag, multiple: false)
+    end)
+  end
+
+  defp retry_batch(batch, state) do
     Task.start(fn ->
       {_successful, failed} = republish_batch_messages(batch, state)
 
