@@ -175,6 +175,14 @@ When `batch_size` is greater than 1:
 - Returning `:error` or `{:error, _}` triggers the retry/dead-letter logic for **each** message in the batch.
 - A failed/crashed batch task will result in messages being redelivered (standard RabbitMQ behavior).
 
+### Feature Compatibility
+
+Batch processing is fully integrated with all other HareMq features:
+- **Retry & Delay Cascade:** If a batch returns `:error`, each message is independently sent to the retry flow with its own delay and retry count.
+- **Auto-scaling:** `HareMq.DynamicConsumer` supports `batch_size`. The `AutoScaler` will scale the number of worker processes based on queue depth as usual.
+- **Stream Queues:** You can use `batch_size` with `stream: true` for high-performance log processing.
+- **Dead-lettering:** Individual messages in a batch that exceed the `retry_limit` are moved to the `.dead` queue.
+
 ---
 
 ## Stream Consumer

@@ -80,6 +80,10 @@ defmodule HareMq do
   end
   ```
 
+  Batch processing is fully compatible with **retry**, **delay cascade**,
+  **auto-scaling**, and **stream queues**. Each message in a batch is
+  individually acknowledged or retried based on the return value of `consume/2`.
+
   ---
 
   ## Stream Consumer
