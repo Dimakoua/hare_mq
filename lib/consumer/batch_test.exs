@@ -240,18 +240,12 @@ defmodule HareMq.Consumer.BatchTest do
     # Should receive batch (messages sent to consumer)
     assert_receive {:batched, ["retry_msg1", "retry_msg2"]}, 2000
 
-    # Wait for async republish task to complete and create delay queue
+    # Wait for async republish task to complete - messages should appear in delay queue
     delay_queue = "batch_retry_queue.delay"
-    wait_until(fn ->
-      case Mgmt.get_queue(delay_queue) do
-        {:ok, _} -> true
-        _ -> false
-      end
-    end)
+    assert :ok = Mgmt.wait_for_messages(delay_queue, 2, "/", 5000)
 
     # Messages should be republished to delay queue due to :error return
     # Verify messages appear in delay queue (batch_retry_queue.delay - single delay value)
-    assert :ok = Mgmt.wait_for_messages(delay_queue, 2, "/", 3000)
 
     assert :ok = GenServer.stop(pub_pid)
     assert :ok = GenServer.stop(cons_pid)
@@ -280,14 +274,9 @@ defmodule HareMq.Consumer.BatchTest do
     # Verify batch was processed by consumer
     assert_receive {:batched, ["delay_msg1", "delay_msg2"]}, 2000
 
-    # Wait for async republish task to complete and create delay queue
+    # Wait for async republish task to complete - messages should appear in delay queue
     delay_queue = "batch_retry_queue.delay"
-    wait_until(fn ->
-      case Mgmt.get_queue(delay_queue) do
-        {:ok, _} -> true
-        _ -> false
-      end
-    end)
+    assert :ok = Mgmt.wait_for_messages(delay_queue, 2, "/", 5000)
 
     # Check delay queue has messages (consumer returns :error)
     # Single delay value creates {queue_name}.delay queue
