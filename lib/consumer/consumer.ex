@@ -1,6 +1,7 @@
 defmodule HareMq.Consumer do
   defmodule Behaviour do
     @callback consume(map() | binary()) :: :ok | {:ok, any()} | :error | {:error, any()}
+    @callback consume(list(map() | binary()), :batch) :: :ok | {:ok, any()} | :error | {:error, any()}
   end
 
   @moduledoc """
@@ -19,6 +20,19 @@ defmodule HareMq.Consumer do
         end
       end
 
+  ## Batch Usage
+
+      defmodule MyApp.BatchWorker do
+        use HareMq.Consumer,
+          queue_name: "my_queue",
+          batch_size: 10
+
+        def consume(messages, :batch) do
+          IO.inspect(messages)
+          :ok
+        end
+      end
+
   ## Options
 
   | Option | Required | Description |
@@ -33,6 +47,8 @@ defmodule HareMq.Consumer do
   | `connection_name` | no | Named connection for multi-vhost use (default `{:global, HareMq.Connection}`) |
   | `stream` | no | `true` to consume a stream queue (default `false`) |
   | `stream_offset` | no | Stream start position: `"first"`, `"last"`, `"next"` (default), integer offset, or `%DateTime{}` |
+  | `batch_size` | no | Number of messages to process in a single batch (default `1`) |
+  | `batch_timeout_ms` | no | Timeout in ms to flush partial batches (default `5000`) |
 
   When `stream: true` the consumer declares an `x-queue-type: stream` queue,
   skips delay/dead-letter setup, and always acks messages (no retry loop).
@@ -49,24 +65,29 @@ defmodule HareMq.Consumer do
         raise "queue_name can not be empty"
       end
 
+      @batch_size @opts[:batch_size] || 1
+      @prefetch_count max(@opts[:prefetch_count] || 1, @batch_size)
+
       @config [
         queue_name: @opts[:queue_name],
         routing_key: @opts[:routing_key] || @opts[:queue_name],
         exchange: @opts[:exchange],
         retry_limit: @opts[:retry_limit],
         delay_in_ms: @opts[:delay_in_ms],
-        prefetch_count: @opts[:prefetch_count] || 1,
+        prefetch_count: @prefetch_count,
         delay_cascade_in_ms: @opts[:delay_cascade_in_ms],
         consumer_name: __MODULE__,
         connection_name: @opts[:connection_name] || {:global, HareMq.Connection},
         stream: @opts[:stream] || false,
-        stream_offset: @opts[:stream_offset] || "next"
+        stream_offset: @opts[:stream_offset] || "next",
+        batch_size: @batch_size,
+        batch_timeout_ms: @opts[:batch_timeout_ms] || 5000
       ]
 
       def child_spec(opts) do
         %{
           id: __MODULE__,
-          start: {__MODULE__, :start_link, [[config: @config, consume: &consume/1]]},
+          start: {__MODULE__, :start_link, [[config: @config, consume: &consume/2]]},
           type: :worker,
           restart: :permanent,
           shutdown: 500
@@ -74,7 +95,7 @@ defmodule HareMq.Consumer do
       end
 
       def start_link(opts \\ []) do
-        HareMq.Worker.Consumer.start_link(config: @config, consume: &consume/1)
+        HareMq.Worker.Consumer.start_link(config: @config, consume: &consume/2)
       end
 
       def republish_dead_messages(number) do
@@ -88,7 +109,15 @@ defmodule HareMq.Consumer do
         raise "Implement me"
       end
 
-      defoverridable(consume: 1)
+      def consume(message, :default) do
+        consume(message)
+      end
+
+      def consume(messages, :batch) do
+        raise "Implement me for batch"
+      end
+
+      defoverridable(consume: 1, consume: 2)
     end
   end
 end

@@ -24,6 +24,8 @@ defmodule HareMq.Configuration do
   | `:drain_caller` | Pending `GenServer.reply` target while draining in-flight tasks on cancel |
   | `:stream` | `true` when consuming a stream queue (default `false`) |
   | `:stream_offset` | Where to start consuming: `"first"`, `"last"`, `"next"` (default), integer offset, or `%DateTime{}` |
+  | `:batch_size` | Maximum number of messages in a batch (default `1`) |
+  | `:batch_timeout_ms` | Timeout in ms to flush partial batches (default `5000`) |
 
   ## Default resolution
 
@@ -54,6 +56,10 @@ defmodule HareMq.Configuration do
     :state,
     :stream,
     :stream_offset,
+    :batch_size,
+    :batch_timeout_ms,
+    pending_batch: [],
+    batch_timer_ref: nil,
     in_flight: MapSet.new(),
     drain_caller: nil
   ]
@@ -104,6 +110,8 @@ defmodule HareMq.Configuration do
     delay_cascade_in_ms = Keyword.get(opts, :delay_cascade_in_ms)
     stream = Keyword.get(opts, :stream, false)
     stream_offset = Keyword.get(opts, :stream_offset, "next")
+    batch_size = Keyword.get(opts, :batch_size, 1)
+    batch_timeout_ms = Keyword.get(opts, :batch_timeout_ms, 5000)
 
     %Configuration{
       channel: channel,
@@ -122,7 +130,11 @@ defmodule HareMq.Configuration do
       state: :running,
       in_flight: MapSet.new(),
       stream: stream,
-      stream_offset: stream_offset
+      stream_offset: stream_offset,
+      batch_size: batch_size,
+      batch_timeout_ms: batch_timeout_ms,
+      pending_batch: [],
+      batch_timer_ref: nil
     }
   end
 
