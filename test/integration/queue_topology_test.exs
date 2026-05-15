@@ -47,8 +47,12 @@ defmodule HareMq.Integration.QueueTopologyTest do
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
     # Stop anything left over from a previous test run
-    for name <- [ClassicTopologyConsumer, StreamTopologyConsumer, TopologyPublisher,
-                 HareMq.Connection] do
+    for name <- [
+          ClassicTopologyConsumer,
+          StreamTopologyConsumer,
+          TopologyPublisher,
+          HareMq.Connection
+        ] do
       stop_global(name)
     end
 
@@ -63,8 +67,12 @@ defmodule HareMq.Integration.QueueTopologyTest do
     {:ok, _} = Connection.start_link([])
 
     on_exit(fn ->
-      for name <- [ClassicTopologyConsumer, StreamTopologyConsumer, TopologyPublisher,
-                   HareMq.Connection] do
+      for name <- [
+            ClassicTopologyConsumer,
+            StreamTopologyConsumer,
+            TopologyPublisher,
+            HareMq.Connection
+          ] do
         stop_global(name)
       end
 

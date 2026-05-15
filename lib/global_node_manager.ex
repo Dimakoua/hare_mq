@@ -52,7 +52,10 @@ defmodule HareMq.GlobalNodeManager do
           :ok
 
         {:error, reason} ->
-          Logger.warning("[GlobalNodeManager] :global sync failed (#{inspect(reason)}), retrying...")
+          Logger.warning(
+            "[GlobalNodeManager] :global sync failed (#{inspect(reason)}), retrying..."
+          )
+
           Process.sleep(1_000)
           wait_until_ready(name, remaining_time - 1_000)
       end

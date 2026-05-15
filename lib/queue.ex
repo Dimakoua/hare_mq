@@ -52,7 +52,9 @@ defmodule HareMq.Queue do
   dead-letter routing back to the main queue. Otherwise a single
   `queue_name.delay` queue is created using `delay_in_ms`.
   """
-  def declare_delay_queue(%Configuration{delay_cascade_in_ms: [_ | _] = delay_cascade_in_ms} = config) do
+  def declare_delay_queue(
+        %Configuration{delay_cascade_in_ms: [_ | _] = delay_cascade_in_ms} = config
+      ) do
     result =
       delay_cascade_in_ms
       |> Enum.sort()

@@ -93,10 +93,15 @@ defmodule HareMq.Publisher do
                 end
 
                 Process.put(:__hare_mq_connect_attempt__, 0)
+
                 :telemetry.execute(
                   [:hare_mq, :publisher, :connected],
                   %{system_time: System.system_time()},
-                  %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+                  %{
+                    publisher: __MODULE__,
+                    exchange: @config[:exchange],
+                    routing_key: @config[:routing_key]
+                  }
                 )
 
                 {:noreply, chan}
@@ -105,7 +110,11 @@ defmodule HareMq.Publisher do
                 attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
                 Process.put(:__hare_mq_connect_attempt__, attempt)
                 delay = backoff_delay(attempt)
-                Logger.error("[publisher] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+                Logger.error(
+                  "[publisher] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})..."
+                )
+
                 Process.send_after(self(), :connect, delay)
                 {:noreply, state}
             end
@@ -114,7 +123,11 @@ defmodule HareMq.Publisher do
             attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
             Process.put(:__hare_mq_connect_attempt__, attempt)
             delay = backoff_delay(attempt)
-            Logger.error("[publisher] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+            Logger.error(
+              "[publisher] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})..."
+            )
+
             Process.send_after(self(), :connect, delay)
             {:noreply, nil}
         end
@@ -171,8 +184,13 @@ defmodule HareMq.Publisher do
             :telemetry.execute(
               [:hare_mq, :publisher, :message, :not_connected],
               %{system_time: System.system_time()},
-              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+              %{
+                publisher: __MODULE__,
+                exchange: @config[:exchange],
+                routing_key: @config[:routing_key]
+              }
             )
+
             {:error, :not_connected}
 
           {:ok, channel} ->
@@ -191,7 +209,11 @@ defmodule HareMq.Publisher do
                 :telemetry.execute(
                   [:hare_mq, :publisher, :message, :published],
                   %{system_time: System.system_time()},
-                  %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+                  %{
+                    publisher: __MODULE__,
+                    exchange: @config[:exchange],
+                    routing_key: @config[:routing_key]
+                  }
                 )
 
                 result
@@ -208,8 +230,13 @@ defmodule HareMq.Publisher do
             :telemetry.execute(
               [:hare_mq, :publisher, :message, :not_connected],
               %{system_time: System.system_time()},
-              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+              %{
+                publisher: __MODULE__,
+                exchange: @config[:exchange],
+                routing_key: @config[:routing_key]
+              }
             )
+
             {:error, :not_connected}
 
           {:ok, channel} ->
@@ -225,7 +252,11 @@ defmodule HareMq.Publisher do
             :telemetry.execute(
               [:hare_mq, :publisher, :message, :published],
               %{system_time: System.system_time()},
-              %{publisher: __MODULE__, exchange: @config[:exchange], routing_key: @config[:routing_key]}
+              %{
+                publisher: __MODULE__,
+                exchange: @config[:exchange],
+                routing_key: @config[:routing_key]
+              }
             )
 
             result
@@ -259,7 +290,13 @@ defmodule HareMq.Publisher do
 
         if(deduplication_ttl) do
           unless(HareMq.DedupCache.is_dup?(message, deduplication_keys, @dedup_cache_name)) do
-            HareMq.DedupCache.add(message, deduplication_ttl, deduplication_keys, @dedup_cache_name)
+            HareMq.DedupCache.add(
+              message,
+              deduplication_ttl,
+              deduplication_keys,
+              @dedup_cache_name
+            )
+
             publish(message)
           else
             {:ok, :duplicate}

@@ -65,10 +65,10 @@ defmodule HareMq.DynamicSupervisor do
       name = "#{config[:module_name]}.W#{number}"
 
       case start_child(supervisor,
-        worker: config[:consumer_worker],
-        name: name,
-        opts: opts
-      ) do
+             worker: config[:consumer_worker],
+             name: name,
+             opts: opts
+           ) do
         {:ok, _pid} ->
           :ok
 

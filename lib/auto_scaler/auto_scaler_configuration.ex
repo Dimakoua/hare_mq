@@ -76,7 +76,8 @@ defmodule HareMq.AutoScalerConfiguration do
       max_consumers: auto_scaling[:max_consumers] || auto_scaler_config(:max_consumers, 20),
       messages_per_consumer:
         auto_scaling[:messages_per_consumer] || auto_scaler_config(:messages_per_consumer, 10),
-      check_interval_ms: auto_scaling[:check_interval_ms] || auto_scaler_config(:check_interval_ms, 5_000)
+      check_interval_ms:
+        auto_scaling[:check_interval_ms] || auto_scaler_config(:check_interval_ms, 5_000)
     }
 
     if config.min_consumers > config.max_consumers do

@@ -48,10 +48,12 @@ defmodule HareMq.AutoScalerTest do
       module_name = "SkipNilChannelTest_#{System.unique_integer()}"
 
       # Start worker W1 with nil channel (simulating a worker still connecting)
-      {:ok, _pid1} = start_mock_worker("#{module_name}.W1", %{channel: nil, queue_name: "test_queue"})
+      {:ok, _pid1} =
+        start_mock_worker("#{module_name}.W1", %{channel: nil, queue_name: "test_queue"})
 
       # Start worker W2 with a valid mocked channel
-      {:ok, _pid2} = start_mock_worker("#{module_name}.W2", %{channel: :mock_channel, queue_name: "test_queue"})
+      {:ok, _pid2} =
+        start_mock_worker("#{module_name}.W2", %{channel: :mock_channel, queue_name: "test_queue"})
 
       # Mock AMQP.Queue.message_count
       :meck.new(AMQP.Queue, [:passthrough])

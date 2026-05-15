@@ -103,7 +103,9 @@ defmodule HareMq.TelemetryTest do
 
   defp safe_stop(name) do
     case GenServer.whereis({:global, name}) do
-      nil -> :ok
+      nil ->
+        :ok
+
       pid ->
         try do
           GenServer.stop(pid)
@@ -121,8 +123,16 @@ defmodule HareMq.TelemetryTest do
     Application.put_env(:hare_mq, :amqp, url: HareMq.Test.RabbitMQManagement.amqp_url())
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
-    for name <- [TelPublisher, TelOkPublisher, TelErrorPublisher, RetryTelPublisher,
-                  DeadTelPublisher, TelOkConsumer, TelErrorConsumer, HareMq.Connection] do
+    for name <- [
+          TelPublisher,
+          TelOkPublisher,
+          TelErrorPublisher,
+          RetryTelPublisher,
+          DeadTelPublisher,
+          TelOkConsumer,
+          TelErrorConsumer,
+          HareMq.Connection
+        ] do
       safe_stop(name)
     end
 
@@ -146,7 +156,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       events = collect(agent)
-      {_, measurements, metadata} = Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :connection, :connected] end)
+
+      {_, measurements, metadata} =
+        Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :connection, :connected] end)
 
       assert is_integer(measurements.system_time)
       assert metadata.connection_name == {:global, HareMq.Connection}
@@ -277,7 +289,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, measurements, metadata} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :publisher, :message, :published] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :publisher, :message, :published]
+        end)
 
       assert is_integer(measurements.system_time)
       assert metadata.publisher == TelPublisher
@@ -326,7 +340,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, measurements, metadata} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :publisher, :message, :not_connected] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :publisher, :message, :not_connected]
+        end)
 
       assert is_integer(measurements.system_time)
       assert metadata.publisher == TelPublisher
@@ -379,11 +395,11 @@ defmodule HareMq.TelemetryTest do
       assert wait_until(fn -> match?({:ok, _}, TelOkPublisher.get_channel()) end)
 
       assert wait_until(fn ->
-        case GenServer.call({:global, TelOkConsumer}, :get_channel) do
-          %{consumer_tag: tag} when is_binary(tag) -> true
-          _ -> false
-        end
-      end)
+               case GenServer.call({:global, TelOkConsumer}, :get_channel) do
+                 %{consumer_tag: tag} when is_binary(tag) -> true
+                 _ -> false
+               end
+             end)
 
       {id, agent} =
         attach_collector([
@@ -400,11 +416,14 @@ defmodule HareMq.TelemetryTest do
 
       events = collect(agent)
 
-      start_event = Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :consumer, :message, :start] end)
-      stop_event  = Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :consumer, :message, :stop] end)
+      start_event =
+        Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :consumer, :message, :start] end)
+
+      stop_event =
+        Enum.find(events, fn {e, _, _} -> e == [:hare_mq, :consumer, :message, :stop] end)
 
       assert start_event != nil
-      assert stop_event  != nil
+      assert stop_event != nil
 
       {_, stop_measurements, stop_metadata} = stop_event
       assert is_integer(stop_measurements.duration)
@@ -428,11 +447,11 @@ defmodule HareMq.TelemetryTest do
       assert wait_until(fn -> match?({:ok, _}, TelErrorPublisher.get_channel()) end)
 
       assert wait_until(fn ->
-        case GenServer.call({:global, TelErrorConsumer}, :get_channel) do
-          %{consumer_tag: tag} when is_binary(tag) -> true
-          _ -> false
-        end
-      end)
+               case GenServer.call({:global, TelErrorConsumer}, :get_channel) do
+                 %{consumer_tag: tag} when is_binary(tag) -> true
+                 _ -> false
+               end
+             end)
 
       {id, agent} = attach_collector([[:hare_mq, :consumer, :message, :stop]])
 
@@ -495,7 +514,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, measurements, meta} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :retry_publisher, :message, :retried] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :retry_publisher, :message, :retried]
+        end)
 
       assert measurements.retry_count == 2
       assert is_integer(measurements.system_time)
@@ -519,7 +540,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, _, meta} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :retry_publisher, :message, :retried] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :retry_publisher, :message, :retried]
+        end)
 
       assert meta.delay_queue == "tel_retry_q.delay.1000"
 
@@ -564,7 +587,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, measurements, meta} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :retry_publisher, :message, :dead_lettered] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :retry_publisher, :message, :dead_lettered]
+        end)
 
       assert measurements.retry_count == 1
       assert is_integer(measurements.system_time)
@@ -586,7 +611,9 @@ defmodule HareMq.TelemetryTest do
                end)
 
       {_, measurements, _} =
-        Enum.find(collect(agent), fn {e, _, _} -> e == [:hare_mq, :retry_publisher, :message, :dead_lettered] end)
+        Enum.find(collect(agent), fn {e, _, _} ->
+          e == [:hare_mq, :retry_publisher, :message, :dead_lettered]
+        end)
 
       assert measurements.retry_count == 5
 

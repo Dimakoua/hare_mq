@@ -4,6 +4,7 @@ FROM elixir:1.15-alpine
 # Install any extra OS packages needed for the project
 RUN apk add --no-cache \
      git \
+     xdg-utils \
      curl \
      gnupg \
      ca-certificates \

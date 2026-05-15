@@ -31,8 +31,7 @@ defmodule HareMq.Worker.Consumer do
   """
 
   defp reconnect_interval,
-    do:
-      (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
+    do: (Application.get_env(:hare_mq, :configuration) || [])[:reconnect_interval_ms] || 10_000
 
   defp backoff_delay(attempt) do
     base = reconnect_interval()
@@ -83,47 +82,12 @@ defmodule HareMq.Worker.Consumer do
     :ok = HareMq.Queue.bind(config)
   end
 
-  def get_channel(consumer_name) do
-    case GenServer.call(consumer_name, :get_channel) do
-      nil -> {:error, :not_connected}
-      state -> {:ok, state}
-    end
-  end
-
-  defp process_result(_result, _payload, %{stream: true} = state, tag, _metadata) do
-    # Stream queues are immutable — ack to advance the credit window, never retry
-    Basic.ack(state.channel, tag)
-  end
-
-  defp process_result(result, payload, state, tag, metadata) do
-    case result do
-      :ok -> Basic.ack(state.channel, tag)
-      {:ok, _} -> Basic.ack(state.channel, tag)
-      :error -> retry(payload, state, tag, metadata)
-      {:error, _} -> retry(payload, state, tag, metadata)
-    end
-  end
-
-  defp retry(payload, state, tag, metadata) do
-    Basic.nack(state.channel, tag, multiple: false, requeue: false)
-
-    Task.start(fn ->
-      try do
-        HareMq.RetryPublisher.republish(payload, state, metadata)
-      rescue
-        e -> Logger.error("[consumer_worker] republish failed: #{inspect(e)}")
-      catch
-        :exit, e -> Logger.error("[consumer_worker] republish exited: #{inspect(e)}")
-      end
-    end)
-  end
-
   def republish_dead_messages(consumer_name, count \\ 1) when is_number(count) do
-    case get_channel(consumer_name) do
-      {:error, :not_connected} ->
+    case GenServer.call(consumer_name, :get_channel) do
+      nil ->
         {:error, :not_connected}
 
-      {:ok, configures} ->
+      configures ->
         HareMq.RetryPublisher.republish_dead_messages(configures, count)
     end
   end
@@ -153,7 +117,9 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info({:connect, [config: config, consume: consume] = opts}, state) do
-    case HareMq.Connection.get_connection(config[:connection_name] || {:global, HareMq.Connection}) do
+    case HareMq.Connection.get_connection(
+           config[:connection_name] || {:global, HareMq.Connection}
+         ) do
       {:ok, conn} ->
         # Get notifications when the connection goes down
         Process.monitor(conn.pid)
@@ -173,14 +139,22 @@ defmodule HareMq.Worker.Consumer do
                 retry_limit: config[:retry_limit],
                 delay_cascade_in_ms: config[:delay_cascade_in_ms],
                 stream: config[:stream],
-                stream_offset: config[:stream_offset]
+                stream_offset: config[:stream_offset],
+                batch_size: config[:batch_size] || 1,
+                batch_timeout_ms: config[:batch_timeout_ms] || 5000
               )
 
             Basic.qos(chan, prefetch_count: config[:prefetch_count])
 
             declare_queues(queue_configuration)
 
-            {:ok, consumer_tag} = Basic.consume(chan, config[:queue_name], nil, stream_consume_opts(queue_configuration))
+            {:ok, consumer_tag} =
+              Basic.consume(
+                chan,
+                config[:queue_name],
+                nil,
+                stream_consume_opts(queue_configuration)
+              )
 
             :telemetry.execute(
               [:hare_mq, :consumer, :connected],
@@ -201,7 +175,11 @@ defmodule HareMq.Worker.Consumer do
             attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
             Process.put(:__hare_mq_connect_attempt__, attempt)
             delay = backoff_delay(attempt)
-            Logger.error("[consumer_worker] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+            Logger.error(
+              "[consumer_worker] Failed to open channel. Reconnecting in #{delay}ms (attempt #{attempt})..."
+            )
+
             Process.send_after(self(), {:connect, opts}, delay)
             {:noreply, state}
         end
@@ -210,7 +188,11 @@ defmodule HareMq.Worker.Consumer do
         attempt = (Process.get(:__hare_mq_connect_attempt__) || 0) + 1
         Process.put(:__hare_mq_connect_attempt__, attempt)
         delay = backoff_delay(attempt)
-        Logger.error("[consumer_worker] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})...")
+
+        Logger.error(
+          "[consumer_worker] Failed to connect. Reconnecting in #{delay}ms (attempt #{attempt})..."
+        )
+
         Process.send_after(self(), {:connect, opts}, delay)
         {:noreply, state}
     end
@@ -241,33 +223,41 @@ defmodule HareMq.Worker.Consumer do
   end
 
   def handle_info(
-        {:basic_deliver, payload, %{delivery_tag: tag, redelivered: _redelivered} = metadata},
+        {:basic_deliver, payload, %{delivery_tag: _tag, redelivered: _redelivered} = metadata},
         state
       ) do
-    {:ok, pid} = Task.start(fn ->
-      try do
-        message = decode_payload(payload, metadata)
+    new_pending = state.pending_batch ++ [{payload, metadata}]
 
-        result =
-          :telemetry.span(
-            [:hare_mq, :consumer, :message],
-            %{queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key},
-            fn ->
-              r = state.consume_fn.(message)
-              {r, %{result: consume_result_status(r), queue: state.queue_name, exchange: state.exchange, routing_key: state.routing_key}}
-            end
-          )
-
-        process_result(result, payload, state, tag, metadata)
-      rescue
-        reason ->
-          Logger.error(inspect(reason))
-          retry(payload, state, tag, metadata)
+    if length(new_pending) >= state.batch_size do
+      # Batch is full — cancel timer and process immediately
+      if state.batch_timer_ref do
+        Process.cancel_timer(state.batch_timer_ref)
       end
-    end)
 
-    ref = Process.monitor(pid)
-    {:noreply, %{state | in_flight: MapSet.put(state.in_flight, ref)}}
+      new_state = process_batch(new_pending, state)
+      {:noreply, %{new_state | pending_batch: [], batch_timer_ref: nil}}
+    else
+      # Batch not full yet — start timer if this is the first message
+      timer_ref =
+        if state.pending_batch == [] do
+          Process.send_after(self(), :batch_timeout, state.batch_timeout_ms)
+        else
+          state.batch_timer_ref
+        end
+
+      {:noreply, %{state | pending_batch: new_pending, batch_timer_ref: timer_ref}}
+    end
+  end
+
+  @doc false
+  def handle_info(:batch_timeout, state) do
+    if state.pending_batch != [] do
+      # Flush partial batch on timeout
+      new_state = process_batch(state.pending_batch, state)
+      {:noreply, %{new_state | pending_batch: [], batch_timer_ref: nil}}
+    else
+      {:noreply, %{state | batch_timer_ref: nil}}
+    end
   end
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
@@ -282,6 +272,15 @@ defmodule HareMq.Worker.Consumer do
         {:noreply, new_state}
       end
     else
+      # Clean up batch timer and nack any pending messages
+      if state.batch_timer_ref do
+        Process.cancel_timer(state.batch_timer_ref)
+      end
+
+      Enum.each(state.pending_batch, fn {_payload, metadata} ->
+        Basic.nack(state.channel, metadata.delivery_tag, multiple: false, requeue: false)
+      end)
+
       Logger.error("worker #{__MODULE__} was DOWN")
       {:stop, {:connection_lost, reason}, state}
     end
@@ -300,6 +299,129 @@ defmodule HareMq.Worker.Consumer do
 
   def handle_info({:EXIT, _pid, reason}, state) do
     {:stop, {:connection_lost, reason}, state}
+  end
+
+
+  defp process_batch(batch, state) do
+    {:ok, pid} =
+      Task.start(fn ->
+        try do
+          {type, data} =
+            if state.batch_size > 1 do
+              messages = Enum.map(batch, fn {p, m} -> decode_payload(p, m) end)
+              {:batch, messages}
+            else
+              {payload, metadata} = List.first(batch)
+              {:default, decode_payload(payload, metadata)}
+            end
+
+          result =
+            :telemetry.span(
+              [:hare_mq, :consumer, :message],
+              %{
+                queue: state.queue_name,
+                exchange: state.exchange,
+                routing_key: state.routing_key
+              },
+              fn ->
+                r = state.consume_fn.(data, type)
+
+                {r,
+                 %{
+                   result: consume_result_status(r),
+                   queue: state.queue_name,
+                   exchange: state.exchange,
+                   routing_key: state.routing_key
+                 }}
+              end
+            )
+
+          process_batch_result(result, batch, state)
+        rescue
+          reason ->
+            Logger.error(inspect(reason))
+            retry_batch(batch, state)
+        end
+      end)
+
+    ref = Process.monitor(pid)
+    %{state | in_flight: MapSet.put(state.in_flight, ref)}
+  end
+
+  defp process_batch_result(_result, batch, %{stream: true} = state) do
+    ack_batch(batch, state)
+  end
+
+  defp process_batch_result(result, batch, state) do
+    case result do
+      :ok -> ack_batch(batch, state)
+      {:ok, _} -> ack_batch(batch, state)
+      :error -> retry_batch(batch, state)
+      {:error, _} -> retry_batch(batch, state)
+    end
+  end
+
+  defp ack_batch(batch, state) do
+    Enum.each(batch, fn {_payload, metadata} ->
+      Basic.ack(state.channel, metadata.delivery_tag, multiple: false)
+    end)
+  end
+
+  defp retry_batch(batch, state) do
+    Task.start(fn ->
+      {_successful, failed} = republish_batch_messages(batch, state)
+
+      if failed > 0 do
+        Logger.warning(
+          "[consumer_worker] Batch republish: #{failed}/#{length(batch)} messages will be redelivered"
+        )
+      end
+    end)
+  end
+
+  defp republish_batch_messages(batch, state) do
+    Enum.reduce(batch, {0, 0}, fn {payload, metadata}, {ok_count, err_count} ->
+      case try_republish_message(payload, state, metadata) do
+        :ok ->
+          case try_nack_message(state, metadata) do
+            :ok -> {ok_count + 1, err_count}
+            :error -> {ok_count, err_count + 1}
+          end
+
+        :error ->
+          {ok_count, err_count + 1}
+      end
+    end)
+  end
+
+  defp try_republish_message(payload, state, metadata) do
+    try do
+      HareMq.RetryPublisher.republish(payload, state, metadata)
+      :ok
+    rescue
+      e ->
+        Logger.error(
+          "[consumer_worker] batch republish failed for tag #{metadata.delivery_tag}: #{inspect(e)} — message will be redelivered"
+        )
+
+        :error
+    catch
+      :exit, e ->
+        Logger.error(
+          "[consumer_worker] batch republish exited for tag #{metadata.delivery_tag}: #{inspect(e)} — message will be redelivered"
+        )
+
+        :error
+    end
+  end
+
+  defp try_nack_message(state, metadata) do
+    try do
+      Basic.nack(state.channel, metadata.delivery_tag, multiple: false, requeue: false)
+      :ok
+    rescue
+      _ -> :error
+    end
   end
 
   defp consume_result_status(:ok), do: :ok
@@ -332,6 +454,20 @@ defmodule HareMq.Worker.Consumer do
       "worker #{__MODULE__} was terminated with reason #{inspect(reason)} state #{inspect(state)}"
     )
 
+    # Clean up batch timer
+    if state.batch_timer_ref do
+      Process.cancel_timer(state.batch_timer_ref)
+    end
+
+    # Nack any pending batch messages
+    Enum.each(state.pending_batch, fn {_payload, metadata} ->
+      try do
+        Basic.nack(state.channel, metadata.delivery_tag, multiple: false, requeue: false)
+      rescue
+        _ -> :ok
+      end
+    end)
+
     close_chan(state)
   end
 
@@ -349,6 +485,9 @@ defmodule HareMq.Worker.Consumer do
 
   defp stream_offset_arg(offset) when is_binary(offset), do: {"x-stream-offset", :longstr, offset}
   defp stream_offset_arg(offset) when is_integer(offset), do: {"x-stream-offset", :long, offset}
-  defp stream_offset_arg(%DateTime{} = dt), do: {"x-stream-offset", :timestamp, DateTime.to_unix(dt)}
+
+  defp stream_offset_arg(%DateTime{} = dt),
+    do: {"x-stream-offset", :timestamp, DateTime.to_unix(dt)}
+
   defp stream_offset_arg(nil), do: {"x-stream-offset", :longstr, "next"}
 end

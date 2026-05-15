@@ -54,15 +54,26 @@ defmodule HareMq.Integration.RetryIntegrationTest do
     Application.put_env(:hare_mq, :amqp, url: Mgmt.amqp_url())
     Application.put_env(:hare_mq, :configuration, %{reconnect_interval_ms: 100})
 
-    for name <- [AlwaysErrorConsumer, FastDeadLetterConsumer, DelayPublisher, DeadPublisher,
-                 HareMq.Connection] do
+    for name <- [
+          AlwaysErrorConsumer,
+          FastDeadLetterConsumer,
+          DelayPublisher,
+          DeadPublisher,
+          HareMq.Connection
+        ] do
       stop_global(name)
     end
 
     Process.sleep(150)
 
-    for q <- [@delay_q, "#{@delay_q}.delay", "#{@delay_q}.dead",
-              @dead_q, "#{@dead_q}.delay", "#{@dead_q}.dead"] do
+    for q <- [
+          @delay_q,
+          "#{@delay_q}.delay",
+          "#{@delay_q}.dead",
+          @dead_q,
+          "#{@dead_q}.delay",
+          "#{@dead_q}.dead"
+        ] do
       Mgmt.delete_queue(q)
     end
 
@@ -70,15 +81,26 @@ defmodule HareMq.Integration.RetryIntegrationTest do
     {:ok, _} = Connection.start_link([])
 
     on_exit(fn ->
-      for name <- [AlwaysErrorConsumer, FastDeadLetterConsumer, DelayPublisher, DeadPublisher,
-                   HareMq.Connection] do
+      for name <- [
+            AlwaysErrorConsumer,
+            FastDeadLetterConsumer,
+            DelayPublisher,
+            DeadPublisher,
+            HareMq.Connection
+          ] do
         stop_global(name)
       end
 
       Process.sleep(150)
 
-      for q <- [@delay_q, "#{@delay_q}.delay", "#{@delay_q}.dead",
-                @dead_q, "#{@dead_q}.delay", "#{@dead_q}.dead"] do
+      for q <- [
+            @delay_q,
+            "#{@delay_q}.delay",
+            "#{@delay_q}.dead",
+            @dead_q,
+            "#{@dead_q}.delay",
+            "#{@dead_q}.dead"
+          ] do
         Mgmt.delete_queue(q)
       end
     end)
@@ -100,6 +122,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
         _ -> false
       end
     end)
+
     wait_until(fn -> match?({:ok, _}, DelayPublisher.get_channel()) end)
 
     DelayPublisher.publish_message("to_delay")
@@ -127,6 +150,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
         _ -> false
       end
     end)
+
     wait_until(fn -> match?({:ok, _}, DeadPublisher.get_channel()) end)
 
     DeadPublisher.publish_message("to_dead")
@@ -148,6 +172,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
         _ -> false
       end
     end)
+
     wait_until(fn -> match?({:ok, _}, DeadPublisher.get_channel()) end)
 
     DeadPublisher.publish_message("msg_a")
@@ -195,6 +220,7 @@ defmodule HareMq.Integration.RetryIntegrationTest do
         _ -> false
       end
     end)
+
     wait_until(fn -> match?({:ok, _}, DeadPublisher.get_channel()) end)
 
     DeadPublisher.publish_message("trigger")
