@@ -21,7 +21,7 @@ Add the dependency to your `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:hare_mq, "~> 1.4.0"}
+    {:hare_mq, "~> 1.5.0"}
   ]
 end
 ```
