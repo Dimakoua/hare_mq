@@ -1,5 +1,11 @@
 # HareMq
 
+[![Hex.pm Version](https://img.shields.io/hexpm/v/hare_mq.svg)](https://hex.pm/packages/hare_mq)
+[![Hex.pm Downloads](https://img.shields.io/hexpm/dt/hare_mq.svg)](https://hex.pm/packages/hare_mq)
+[![License](https://img.shields.io/hexpm/l/hare_mq.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/hare_mq)
+[![Elixir](https://img.shields.io/badge/elixir-%3E%3D%201.12-blue.svg)](https://elixir-lang.org)
+
 HareMq is an Elixir library for interacting with AMQP systems such as RabbitMQ. It provides supervised connection management, queue/exchange topology declaration, message publishing with deduplication, message consumption with automatic retry/dead-letter routing, and dynamic consumer scaling with an optional auto-scaler.
 
 ## Watch video tutorial
