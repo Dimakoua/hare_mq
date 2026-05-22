@@ -41,7 +41,7 @@ defmodule HareMq.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:amqp, "~> 3.3"},
+      {:amqp, "~> 4.1"},
       {:jason, "~> 1.4"},
       {:telemetry, "~> 1.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
