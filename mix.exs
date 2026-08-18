@@ -4,8 +4,8 @@ defmodule HareMq.MixProject do
   def project do
     [
       app: :hare_mq,
-      version: "1.5.0",
-      elixir: "~> 1.12",
+      version: "1.5.1",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -41,11 +41,11 @@ defmodule HareMq.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:amqp, "~> 3.3"},
+      {:amqp, "~> 4.1"},
       {:jason, "~> 1.4"},
       {:telemetry, "~> 1.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:meck, "~> 0.9", only: :test}
+      {:meck, "~> 1.1", only: :test}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
